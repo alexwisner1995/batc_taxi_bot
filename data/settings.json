@@ -1,0 +1,8 @@
+{
+  "econom_base_price": 400,
+  "econom_price_per_km": 80,
+  "delivery_base_price": 350,
+  "delivery_price_per_km": 60,
+  "commission_percent": 15,
+  "min_price": 300
+}
