@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>БАЦ Такси - Щербакты</title>
+    <title>БАЦ Такси</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,516 +12,749 @@
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        body, html { height: 100%; overflow: hidden; background: #1a1a1a; color: white; }
+        :root {
+            --green: #34a853;
+            --red: #ea4335;
+            --yellow: #fbbc04;
+            --dark: #1a1a1a;
+            --gray: #f5f5f5;
+            --border: #e0e0e0;
+            --text: #333;
+            --text-light: #888;
+        }
 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { 
+            height: 100%; overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark); color: white;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* АВТОРИЗАЦИЯ */
         #auth-screen {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.95); z-index: 10000;
-            display: flex; align-items: center; justify-content: center;
+            background: #fff; z-index: 10000; display: flex; flex-direction: column;
         }
-        .auth-box {
-            background: white; width: 90%; max-width: 400px;
-            border-radius: 20px; padding: 30px 20px; color: #333;
+        .auth-header {
+            background: var(--green); padding: 60px 20px 30px; color: white; text-align: center;
         }
-        .auth-logo { font-size: 36px; font-weight: bold; text-align: center; margin-bottom: 20px; color: #34a853; }
+        .auth-logo { font-size: 40px; font-weight: bold; }
+        .auth-subtitle { font-size: 14px; opacity: 0.9; margin-top: 5px; }
+        .auth-body { padding: 20px; flex: 1; }
+        .auth-label { font-size: 13px; color: var(--text-light); margin-bottom: 5px; display: block; }
         .auth-input {
-            width: 100%; padding: 14px; margin: 8px 0;
-            border: 2px solid #e0e0e0; border-radius: 12px; font-size: 16px;
+            width: 100%; padding: 14px; border: 2px solid var(--border); border-radius: 12px;
+            font-size: 16px; margin-bottom: 15px; outline: none; background: var(--gray);
         }
-        .auth-input:focus { outline: none; border-color: #34a853; }
-        .auth-button {
-            width: 100%; padding: 16px; background: #34a853; color: white;
-            border: none; border-radius: 12px; font-size: 18px; font-weight: bold;
-            margin-top: 16px; cursor: pointer;
+        .auth-input:focus { border-color: var(--green); background: white; }
+        
+        .phone-row { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
+        .country-select {
+            padding: 14px 10px; border: 2px solid var(--border); border-radius: 12px;
+            background: var(--gray); font-size: 14px; min-width: 100px; cursor: pointer;
         }
-        .auth-error { color: #ea4335; text-align: center; margin-top: 10px; display: none; }
+        .phone-input { flex: 1; }
         
-        #map { height: 100vh; width: 100%; position: absolute; top: 0; left: 0; }
-        
+        .auth-btn {
+            width: 100%; padding: 16px; background: var(--green); color: white;
+            border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer;
+        }
+        .auth-btn:active { transform: scale(0.98); }
+
+        /* КАРТА */
+        #map { height: 100vh; width: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* ВЕРХНЯЯ ПАНЕЛЬ */
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            padding: 50px 15px 10px; background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .top-menu-btn {
+            width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2);
+            border: none; color: white; font-size: 20px; cursor: pointer; backdrop-filter: blur(10px);
+        }
+
+        /* ПАНЕЛЬ ПОИСКА */
         .search-panel {
-            position: fixed; top: 15px; left: 15px; right: 15px;
-            background: white; border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 1000; padding: 12px;
+            position: fixed; top: 100px; left: 10px; right: 10px; z-index: 100;
+            background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            padding: 10px;
         }
         .search-row {
-            display: flex; align-items: center; gap: 10px;
-            padding: 10px; background: #f5f5f5; border-radius: 10px; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 10px; padding: 10px;
+            background: var(--gray); border-radius: 10px; margin-bottom: 6px;
         }
-        .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-        .dot-from { background: #34a853; }
-        .dot-to { background: #ea4335; }
+        .search-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .dot-from { background: var(--green); }
+        .dot-stop { background: var(--yellow); }
+        .dot-to { background: var(--red); }
         .search-input {
-            flex: 1; border: none; background: transparent;
-            font-size: 15px; outline: none; color: #333;
+            flex: 1; border: none; background: transparent; font-size: 14px; outline: none; color: var(--text);
         }
-        .suggestions-list {
-            background: white; border-radius: 10px; max-height: 200px;
-            overflow-y: auto; display: none;
+        .search-add-stop {
+            color: var(--green); font-size: 13px; cursor: pointer; padding: 5px 10px;
+        }
+        .suggestions {
+            background: white; border-radius: 10px; max-height: 180px; overflow-y: auto; display: none;
         }
         .suggestion-item {
-            padding: 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0;
+            padding: 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
+            color: var(--text); font-size: 14px;
         }
-        .suggestion-item:hover { background: #f5f5f5; }
-        
-        .location-btn {
-            position: fixed; right: 15px; bottom: 250px;
-            width: 44px; height: 44px; background: white; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;
-            cursor: pointer; font-size: 20px;
+        .suggestion-item:hover { background: var(--gray); }
+        .suggestion-name { font-weight: 500; }
+        .suggestion-addr { font-size: 12px; color: var(--text-light); }
+
+        /* КНОПКИ НА КАРТЕ */
+        .map-btns { position: fixed; right: 10px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+        .map-btn {
+            width: 40px; height: 40px; border-radius: 50%; background: white;
+            border: none; font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
-        
+        .map-btns-top { top: 220px; }
+        .map-btns-bottom { bottom: 230px; }
+
+        /* НИЖНЯЯ ПАНЕЛЬ */
         .bottom-sheet {
-            position: fixed; bottom: 0; left: 0; right: 0;
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
             background: white; border-radius: 24px 24px 0 0;
-            padding: 20px; z-index: 1001; max-height: 40vh; overflow-y: auto;
+            padding: 15px 20px 25px; max-height: 55vh; overflow-y: auto;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
         }
-        .handle {
-            width: 40px; height: 4px; background: #ddd;
-            border-radius: 2px; margin: 0 auto 15px;
+        .bottom-handle {
+            width: 35px; height: 4px; background: #ddd; border-radius: 2px; margin: 0 auto 12px;
         }
-        .tariff-row { display: flex; gap: 10px; margin: 15px 0; }
+        .tariff-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; }
         .tariff-card {
-            flex: 1; border: 2px solid #e0e0e0; border-radius: 16px;
-            padding: 16px; text-align: center; cursor: pointer;
+            min-width: 120px; border: 2px solid var(--border); border-radius: 16px;
+            padding: 14px; text-align: center; cursor: pointer; flex-shrink: 0;
         }
-        .tariff-card.active { border-color: #34a853; background: #f0faf3; }
-        .tariff-name { font-weight: 600; color: #333; font-size: 14px; }
-        .tariff-price { color: #34a853; font-weight: bold; font-size: 16px; margin-top: 4px; }
+        .tariff-card.active { border-color: var(--green); background: #f0faf3; }
+        .tariff-icon { font-size: 28px; }
+        .tariff-name { font-weight: 600; color: var(--text); font-size: 14px; }
+        .tariff-price { color: var(--green); font-weight: bold; font-size: 15px; }
+        .tariff-time { font-size: 11px; color: var(--text-light); }
+        
+        .options-row { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+        .option-chip {
+            padding: 8px 14px; border: 1px solid var(--border); border-radius: 20px;
+            font-size: 13px; cursor: pointer; color: var(--text); background: white;
+        }
+        .option-chip.active { background: var(--green); color: white; border-color: var(--green); }
+        
+        .payment-row { margin: 10px 0; }
+        .payment-select {
+            width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 12px;
+            font-size: 14px; color: var(--text); background: var(--gray);
+        }
+        .change-input {
+            width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 12px;
+            font-size: 14px; margin-top: 8px; display: none;
+        }
+        .change-input.show { display: block; }
         
         .order-btn {
-            width: 100%; padding: 16px; background: #34a853; color: white;
-            border: none; border-radius: 12px; font-size: 18px; font-weight: bold;
-            cursor: pointer; margin-top: 12px;
+            width: 100%; padding: 16px; background: var(--green); color: white;
+            border: none; border-radius: 14px; font-size: 18px; font-weight: bold;
+            cursor: pointer; margin-top: 15px;
         }
         .order-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .order-btn:active { transform: scale(0.98); }
         
-        .route-info {
-            text-align: center; color: #666; font-size: 14px;
-            padding: 10px; background: #f5f5f5; border-radius: 10px;
+        .route-summary {
+            text-align: center; color: var(--text); font-size: 13px;
+            padding: 8px; background: var(--gray); border-radius: 10px; margin: 8px 0;
         }
-        
-        #searching-screen {
+        .route-summary strong { color: var(--green); }
+
+        /* ЭКРАН ПОИСКА ВОДИТЕЛЯ */
+        #searching-overlay {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.9); z-index: 10000;
+            background: rgba(0,0,0,0.92); z-index: 10000;
             flex-direction: column; align-items: center; justify-content: center; color: white;
         }
-        #searching-screen.active { display: flex; }
-        .radar {
-            width: 100px; height: 100px; border: 3px solid #34a853;
-            border-radius: 50%; animation: pulse 2s infinite;
+        #searching-overlay.active { display: flex; }
+        .radar-anim {
+            width: 100px; height: 100px; border: 3px solid var(--green); border-radius: 50%;
+            animation: radar 2s infinite; margin-bottom: 20px;
         }
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.15); opacity: 0.6; }
-            100% { transform: scale(1); opacity: 1; }
+        @keyframes radar {
+            0% { transform: scale(0.8); opacity: 1; box-shadow: 0 0 0 0 rgba(52,168,83,0.5); }
+            50% { transform: scale(1.1); opacity: 0.7; box-shadow: 0 0 0 20px rgba(52,168,83,0); }
+            100% { transform: scale(0.8); opacity: 1; box-shadow: 0 0 0 0 rgba(52,168,83,0); }
         }
-        .cancel-btn {
-            margin-top: 30px; padding: 12px 30px;
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
-            color: white; border-radius: 20px; cursor: pointer;
+        .cancel-search {
+            margin-top: 30px; padding: 10px 25px; background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 20px; cursor: pointer;
         }
+
+        /* ЭКРАН ВОДИТЕЛЬ НАЙДЕН */
+        #driver-found-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.92); z-index: 10000; color: white;
+        }
+        #driver-found-overlay.active { display: flex; flex-direction: column; }
+        .driver-found-map { flex: 1; }
+        .driver-info-sheet {
+            background: white; border-radius: 24px 24px 0 0; padding: 20px; color: var(--text);
+        }
+        .driver-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .driver-avatar {
+            width: 50px; height: 50px; border-radius: 50%; background: var(--green);
+            display: flex; align-items: center; justify-content: center; font-size: 24px; color: white;
+        }
+        .driver-name { font-size: 18px; font-weight: bold; }
+        .driver-car { color: var(--text-light); font-size: 14px; }
+        .driver-rating { color: var(--yellow); }
+        .driver-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .driver-call-btn, .driver-chat-btn {
+            flex: 1; padding: 14px; border-radius: 12px; border: none; font-size: 15px; cursor: pointer;
+            text-align: center;
+        }
+        .driver-call-btn { background: var(--green); color: white; }
+        .driver-chat-btn { background: var(--gray); color: var(--text); }
         
-        .top-bar {
-            position: fixed; top: 0; left: 0; right: 0;
-            background: #1a1a1a; padding: 50px 20px 15px; z-index: 999;
-            display: flex; justify-content: space-between;
+        .eta-box {
+            background: #e8f5e9; padding: 12px; border-radius: 12px; text-align: center; margin: 10px 0;
         }
-        .top-title { font-size: 20px; font-weight: bold; }
-        .menu-btn {
-            width: 40px; height: 40px; border-radius: 50%;
-            background: #34a853; border: none; color: white;
-            font-size: 20px; cursor: pointer;
+        .eta-time { font-size: 24px; font-weight: bold; color: var(--green); }
+
+        /* МЕНЮ */
+        #menu-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 10000;
         }
+        #menu-overlay.active { display: block; }
+        .menu-sheet {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: white; border-radius: 24px 24px 0 0; padding: 20px; color: var(--text);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .menu-item {
+            display: flex; align-items: center; gap: 12px; padding: 15px;
+            cursor: pointer; border-radius: 12px; font-size: 16px;
+        }
+        .menu-item:hover { background: var(--gray); }
+        .menu-divider { height: 1px; background: var(--border); margin: 8px 0; }
     </style>
 </head>
 <body>
 
-    <!-- Авторизация -->
+    <!-- АВТОРИЗАЦИЯ -->
     <div id="auth-screen">
-        <div class="auth-box">
-            <div class="auth-logo">🚖 БАЦ Такси</div>
-            <input type="text" id="auth-name" class="auth-input" placeholder="Ваше имя" />
-            <input type="tel" id="auth-phone" class="auth-input" placeholder="+7 (XXX) XXX-XX-XX" />
-            <div class="auth-error" id="auth-error">Заполните все поля</div>
-            <button class="auth-button" onclick="login()">Продолжить</button>
+        <div class="auth-header">
+            <div class="auth-logo">🚖 БАЦ</div>
+            <div class="auth-subtitle">Такси в Щербактах</div>
+        </div>
+        <div class="auth-body">
+            <label class="auth-label">Как вас зовут?</label>
+            <input type="text" class="auth-input" id="auth-name" placeholder="Ваше имя" />
+            
+            <label class="auth-label">Номер телефона</label>
+            <div class="phone-row">
+                <select class="country-select" id="country-code">
+                    <option value="+7">🇰🇿 +7</option>
+                    <option value="+998">🇺🇿 +998</option>
+                    <option value="+996">🇰🇬 +996</option>
+                    <option value="+7">🇷🇺 +7</option>
+                </select>
+                <input type="tel" class="auth-input phone-input" id="auth-phone" 
+                       placeholder="XXX XXX XXXX" maxlength="10" />
+            </div>
+            
+            <button class="auth-btn" onclick="login()">Продолжить</button>
         </div>
     </div>
 
-    <!-- Основной экран -->
-    <div id="main-screen" style="display: none;">
-        <div class="top-bar">
-            <div class="top-title">🚖 БАЦ Такси</div>
-            <button class="menu-btn" onclick="logout()">👤</button>
-        </div>
-        
+    <!-- ОСНОВНОЙ ЭКРАН -->
+    <div id="main-screen" style="display:none;">
         <div id="map"></div>
         
-        <div class="location-btn" onclick="getLocation()">📍</div>
+        <div class="top-bar">
+            <div></div>
+            <button class="top-menu-btn" onclick="toggleMenu()">👤</button>
+        </div>
         
-        <div class="search-panel">
+        <div class="map-btns map-btns-top">
+            <button class="map-btn" onclick="getLocation()" title="Моё местоположение">📍</button>
+        </div>
+
+        <!-- Поиск адресов -->
+        <div class="search-panel" id="search-panel">
             <div class="search-row">
-                <div class="dot dot-from"></div>
-                <input type="text" class="search-input" id="input-from" placeholder="Откуда?" value="Шарбакты (Центр)" />
+                <div class="search-dot dot-from"></div>
+                <input type="text" class="search-input" id="input-from" placeholder="Откуда?" />
+            </div>
+            <div class="search-row" id="stop-row" style="display:none;">
+                <div class="search-dot dot-stop"></div>
+                <input type="text" class="search-input" id="input-stop" placeholder="Остановка" />
             </div>
             <div class="search-row">
-                <div class="dot dot-to"></div>
+                <div class="search-dot dot-to"></div>
                 <input type="text" class="search-input" id="input-to" placeholder="Куда?" />
             </div>
-            <div class="suggestions-list" id="suggestions-list"></div>
+            <div class="search-add-stop" id="add-stop-btn" onclick="toggleStop()">+ Добавить остановку</div>
+            <div class="suggestions" id="suggestions-list"></div>
         </div>
-        
-        <div class="bottom-sheet">
-            <div class="handle"></div>
-            <div class="route-info" id="route-info">💡 Введите адрес или кликните по карте</div>
-            <div class="tariff-row">
+
+        <!-- Нижняя панель -->
+        <div class="bottom-sheet" id="bottom-sheet">
+            <div class="bottom-handle"></div>
+            <div class="route-summary" id="route-summary">💡 Выберите точки маршрута</div>
+            
+            <div class="tariff-scroll" id="tariff-scroll">
                 <div class="tariff-card active" onclick="selectTariff('econom')">
-                    <div class="tariff-name">🚗 Эконом</div>
+                    <div class="tariff-icon">🚗</div>
+                    <div class="tariff-name">Эконом</div>
                     <div class="tariff-price" id="price-econom">— ₸</div>
-                    <div style="font-size: 11px; color: #888;" id="info-econom"></div>
+                    <div class="tariff-time" id="time-econom"></div>
                 </div>
                 <div class="tariff-card" onclick="selectTariff('delivery')">
-                    <div class="tariff-name">📦 Доставка</div>
+                    <div class="tariff-icon">📦</div>
+                    <div class="tariff-name">Доставка</div>
                     <div class="tariff-price" id="price-delivery">— ₸</div>
-                    <div style="font-size: 11px; color: #888;" id="info-delivery"></div>
+                    <div class="tariff-time" id="time-delivery"></div>
+                </div>
+                <div class="tariff-card" onclick="selectTariff('comfort')">
+                    <div class="tariff-icon">🚙</div>
+                    <div class="tariff-name">Комфорт</div>
+                    <div class="tariff-price" id="price-comfort">— ₸</div>
+                    <div class="tariff-time" id="time-comfort"></div>
                 </div>
             </div>
-            <button class="order-btn" id="order-btn" disabled onclick="createOrder()">Заказать БАЦ</button>
+            
+            <div class="options-row">
+                <div class="option-chip" id="opt-pet" onclick="toggleOption('pet')">🐾 С животным</div>
+                <div class="option-chip" id="opt-child" onclick="toggleOption('child')">👶 Детское кресло</div>
+                <div class="option-chip" id="opt-trunk" onclick="toggleOption('trunk')">🧳 Багажник</div>
+            </div>
+            
+            <div class="payment-row">
+                <select class="payment-select" id="payment-method" onchange="togglePayment()">
+                    <option value="cash">💵 Наличные</option>
+                    <option value="kaspi">🏦 Kaspi перевод</option>
+                    <option value="halyk">🏦 Halyk перевод</option>
+                    <option value="card">💳 Карта водителю</option>
+                </select>
+                <input type="number" class="change-input" id="change-amount" 
+                       placeholder="Сдача с ... тенге" />
+            </div>
+            
+            <button class="order-btn" id="order-btn" disabled onclick="createOrder()">
+                Заказать БАЦ
+            </button>
         </div>
-        
-        <div id="searching-screen">
-            <div class="radar"></div>
-            <div style="margin-top: 20px; font-size: 18px;">🔍 Ищем ближайшую машину...</div>
-            <div style="color: #999; margin-top: 8px;">Обычно 1-3 минуты</div>
-            <button class="cancel-btn" onclick="cancelSearch()">Отменить</button>
+
+        <!-- Экран поиска -->
+        <div id="searching-overlay">
+            <div class="radar-anim"></div>
+            <div style="font-size: 20px;">🔍 Ищем ближайшего водителя...</div>
+            <div style="color: #aaa; margin-top: 8px;">Обычно 1-3 минуты</div>
+            <button class="cancel-search" onclick="cancelSearch()">Отменить поиск</button>
+        </div>
+
+        <!-- Водитель найден -->
+        <div id="driver-found-overlay">
+            <div class="driver-found-map" id="driver-map"></div>
+            <div class="driver-info-sheet">
+                <div class="driver-header">
+                    <div class="driver-avatar">🚗</div>
+                    <div>
+                        <div class="driver-name" id="d-name">Асхат</div>
+                        <div class="driver-car" id="d-car">Toyota Camry • A123BC</div>
+                        <div class="driver-rating">⭐ 4.9</div>
+                    </div>
+                </div>
+                <div class="eta-box">
+                    <div style="color:#666;">Приедет через</div>
+                    <div class="eta-time" id="d-eta">5 мин</div>
+                </div>
+                <div class="driver-actions">
+                    <button class="driver-call-btn" onclick="callDriver()">📞 Позвонить</button>
+                    <button class="driver-chat-btn" onclick="chatDriver()">💬 Написать</button>
+                </div>
+                <button class="order-btn" style="margin-top:10px; background:#ea4335;" onclick="cancelRide()">
+                    Отменить поездку
+                </button>
+            </div>
+        </div>
+
+        <!-- Меню -->
+        <div id="menu-overlay" onclick="if(event.target===this) toggleMenu()">
+            <div class="menu-sheet">
+                <div style="text-align:center; padding:10px;">
+                    <div style="font-size:18px; font-weight:bold; color:#333;" id="menu-name"></div>
+                    <div style="color:#888;" id="menu-phone-display"></div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-item" onclick="openPage('passenger.html')">📋 История поездок</div>
+                <div class="menu-item" onclick="openPage('driver.html')">🚗 Стать водителем</div>
+                <div class="menu-item" onclick="openPage('admin.html')">⚙️ Админ-панель</div>
+                <div class="menu-divider"></div>
+                <div class="menu-item" onclick="logout()">🚪 Выйти</div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Простая версия без API — всё работает на клиенте
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
+        tg.MainButton.hide();
 
-        let pointFrom = { coords: [52.4933, 78.1614], name: 'Шарбакты (Центр)' };
-        let pointTo = null;
-        let selectedTariff = 'econom';
+        let currentUser = null;
+        let map, driverMap;
+        let pointFrom = null, pointStop = null, pointTo = null;
+        let markerFrom = null, markerStop = null, markerTo = null;
         let routingControl = null;
-        let map = null;
-        let markerFrom = null;
-        let markerTo = null;
-        let lastDistance = null;
-        let lastTime = null;
+        let selectedTariff = 'econom';
+        let lastDistance = null, lastTime = null;
         let searchTimeout = null;
+        let activeSearchField = 'to';
+        let options = { pet: false, child: false, trunk: false };
+        let hasStop = false;
 
-        // ==================== АВТОРИЗАЦИЯ ====================
-async function login() {
-    const name = document.getElementById('auth-name').value.trim();
-    const phone = document.getElementById('auth-phone').value.trim();
-    
-    if (!name || !phone) {
-        document.getElementById('auth-error').style.display = 'block';
-        return;
-    }
-    
-    document.getElementById('auth-error').style.display = 'none';
-    
-    // Сохраняем пользователя через API
-    try {
-        const telegramId = tg.initDataUnsafe?.user?.id || 'test_user';
-        
-        await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                telegram_id: String(telegramId),
-                first_name: name,
-                phone: phone,
-                role: 'passenger'
-            })
-        });
-        
-        console.log('Пользователь сохранён:', name, phone);
-    } catch(e) {
-        console.log('Не удалось сохранить на сервере, но продолжаем');
-    }
-    
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('main-screen').style.display = 'block';
-    
-    initMap();
-}
+        // ========== АВТОРИЗАЦИЯ ==========
+        function login() {
+            const name = document.getElementById('auth-name').value.trim();
+            const code = document.getElementById('country-code').value;
+            const phoneNum = document.getElementById('auth-phone').value.trim();
+            
+            if (!name) { alert('Введите имя'); return; }
+            if (!phoneNum || phoneNum.length < 10) { alert('Введите номер телефона'); return; }
+            
+            currentUser = {
+                name: name,
+                phone: code + ' ' + phoneNum
+            };
+            
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('main-screen').style.display = 'block';
+            
+            initMap();
+            document.getElementById('menu-name').textContent = name;
+            document.getElementById('menu-phone-display').textContent = code + ' ' + phoneNum;
+        }
 
-        // ==================== КАРТА ====================
+        function formatPhone(input) {
+            let val = input.value.replace(/\D/g, '');
+            if (val.length > 10) val = val.slice(0, 10);
+            if (val.length > 6) val = val.slice(0, 3) + ' ' + val.slice(3, 6) + ' ' + val.slice(6);
+            else if (val.length > 3) val = val.slice(0, 3) + ' ' + val.slice(3);
+            input.value = val;
+        }
+        document.getElementById('auth-phone').addEventListener('input', function() { formatPhone(this); });
+
+        // ========== КАРТА ==========
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([52.4933, 78.1614], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-            // Маркер "Откуда"
+            
             markerFrom = L.marker([52.4933, 78.1614], {
-                icon: L.divIcon({
-                    html: '<div style="background:#34a853;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>',
-                    iconSize: [16, 16], iconAnchor: [8, 8]
-                }),
-                draggable: true
+                icon: createIcon('#34a853'), draggable: true
             }).addTo(map);
+            pointFrom = { coords: [52.4933, 78.1614], name: 'Шарбакты (Центр)' };
+            document.getElementById('input-from').value = 'Шарбакты (Центр)';
             
             markerFrom.on('dragend', function(e) {
                 pointFrom.coords = [e.target.getLatLng().lat, e.target.getLatLng().lng];
-                pointFrom.name = 'Точка на карте';
-                document.getElementById('input-from').value = 'Точка на карте';
+                reverseGeocode(e.target.getLatLng().lat, e.target.getLatLng().lng, 'from');
                 if (pointTo) calculateRoute();
             });
-
-            // Клик по карте = точка "Куда"
+            
             map.on('click', function(e) {
                 setPointTo([e.latlng.lat, e.latlng.lng], 'Точка на карте');
-            });
-
-            // Поиск адресов
-            document.getElementById('input-to').addEventListener('input', function() {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => searchAddress(this.value), 500);
+                reverseGeocode(e.latlng.lat, e.latlng.lng, 'to');
             });
             
             document.getElementById('input-from').addEventListener('input', function() {
+                activeSearchField = 'from';
                 clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => searchAddressFrom(this.value), 500);
+                searchTimeout = setTimeout(() => searchAddress(this.value, 'from'), 500);
+            });
+            document.getElementById('input-to').addEventListener('input', function() {
+                activeSearchField = 'to';
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => searchAddress(this.value, 'to'), 500);
+            });
+            document.getElementById('input-stop').addEventListener('input', function() {
+                activeSearchField = 'stop';
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => searchAddress(this.value, 'stop'), 500);
             });
         }
 
-        // ==================== ГЕОЛОКАЦИЯ ====================
+        function createIcon(color) {
+            return L.divIcon({
+                html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>`,
+                iconSize: [16, 16], iconAnchor: [8, 8]
+            });
+        }
+
+        // ========== ГЕОЛОКАЦИЯ ==========
         function getLocation() {
-            if (!navigator.geolocation) {
-                alert('Геолокация не поддерживается');
-                return;
-            }
+            if (!navigator.geolocation) { alert('Геолокация не поддерживается'); return; }
             navigator.geolocation.getCurrentPosition(
                 function(pos) {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    pointFrom.coords = [lat, lng];
-                    pointFrom.name = 'Моё местоположение';
-                    document.getElementById('input-from').value = 'Моё местоположение';
+                    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+                    pointFrom = { coords: [lat, lng], name: 'Моё местоположение' };
                     markerFrom.setLatLng([lat, lng]);
+                    document.getElementById('input-from').value = 'Моё местоположение';
                     map.setView([lat, lng], 15);
                     if (pointTo) calculateRoute();
                 },
-                function() {
-                    alert('Не удалось определить местоположение');
-                }
+                function() { alert('Не удалось определить местоположение. Разрешите доступ.'); }
             );
         }
 
-        // ==================== ПОИСК АДРЕСОВ ====================
-        async function searchAddress(query) {
+        // ========== ПОИСК АДРЕСОВ ==========
+        async function searchAddress(query, target) {
             if (!query || query.length < 2) {
                 document.getElementById('suggestions-list').style.display = 'none';
                 return;
             }
-            
             try {
-                const response = await fetch(
+                const resp = await fetch(
                     `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(query + ', Щербакты')}`
                 );
-                const data = await response.json();
-                
+                const data = await resp.json();
                 const list = document.getElementById('suggestions-list');
                 list.innerHTML = '';
-                
                 if (data.length === 0) {
-                    list.innerHTML = '<div class="suggestion-item">Ничего не найдено</div>';
+                    list.innerHTML = '<div class="suggestion-item" style="color:#888;">Ничего не найдено</div>';
                 } else {
                     data.forEach(item => {
-                        const div = document.createElement('div');
-                        div.className = 'suggestion-item';
-                        div.innerHTML = `📍 ${item.display_name.split(',')[0]}<br><small style="color:#888">${item.display_name.split(',').slice(1,3).join(',')}</small>`;
-                        div.onclick = function() {
-                            setPointTo([parseFloat(item.lat), parseFloat(item.lng)], item.display_name.split(',')[0]);
-                            list.style.display = 'none';
-                        };
-                        list.appendChild(div);
-                    });
-                }
-                list.style.display = 'block';
-            } catch(e) {
-                console.log('Ошибка поиска:', e);
-            }
-        }
-
-        async function searchAddressFrom(query) {
-            if (!query || query.length < 2) {
-                document.getElementById('suggestions-list').style.display = 'none';
-                return;
-            }
-            
-            try {
-                const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&q=${encodeURIComponent(query + ', Щербакты')}`
-                );
-                const data = await response.json();
-                
-                const list = document.getElementById('suggestions-list');
-                list.innerHTML = '';
-                
-                if (data.length === 0) {
-                    list.innerHTML = '<div class="suggestion-item">Ничего не найдено</div>';
-                } else {
-                    data.forEach(item => {
-                        const div = document.createElement('div');
-                        div.className = 'suggestion-item';
-                        div.innerHTML = `📍 ${item.display_name.split(',')[0]}<br><small style="color:#888">${item.display_name.split(',').slice(1,3).join(',')}</small>`;
-                        div.onclick = function() {
+                        const d = document.createElement('div');
+                        d.className = 'suggestion-item';
+                        const name = item.display_name.split(',')[0];
+                        const addr = item.display_name.split(',').slice(1, 3).join(',');
+                        d.innerHTML = `<div class="suggestion-name">📍 ${name}</div><div class="suggestion-addr">${addr}</div>`;
+                        d.onclick = function() {
                             const coords = [parseFloat(item.lat), parseFloat(item.lng)];
-                            pointFrom.coords = coords;
-                            pointFrom.name = item.display_name.split(',')[0];
-                            document.getElementById('input-from').value = pointFrom.name;
-                            markerFrom.setLatLng(coords);
+                            if (target === 'from') setPointFrom(coords, name);
+                            else if (target === 'stop') setPointStop(coords, name);
+                            else setPointTo(coords, name);
                             list.style.display = 'none';
-                            if (pointTo) calculateRoute();
                         };
-                        list.appendChild(div);
+                        list.appendChild(d);
                     });
                 }
                 list.style.display = 'block';
-            } catch(e) {
-                console.log('Ошибка поиска:', e);
-            }
+            } catch(e) { console.log('Ошибка поиска:', e); }
         }
 
-        // ==================== ТОЧКИ МАРШРУТА ====================
+        async function reverseGeocode(lat, lng, target) {
+            try {
+                const resp = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&accept-language=ru&lat=${lat}&lon=${lng}`
+                );
+                const data = await resp.json();
+                if (data.display_name) {
+                    const name = data.display_name.split(',')[0];
+                    if (target === 'from') { pointFrom.name = name; document.getElementById('input-from').value = name; }
+                    else if (target === 'to' && pointTo) { pointTo.name = name; document.getElementById('input-to').value = name; }
+                }
+            } catch(e) {}
+        }
+
+        // ========== ТОЧКИ МАРШРУТА ==========
+        function setPointFrom(coords, name) {
+            pointFrom = { coords, name };
+            document.getElementById('input-from').value = name;
+            markerFrom.setLatLng(coords);
+            if (pointTo) calculateRoute();
+        }
+
+        function setPointStop(coords, name) {
+            pointStop = { coords, name };
+            document.getElementById('input-stop').value = name;
+            if (markerStop) map.removeLayer(markerStop);
+            markerStop = L.marker(coords, { icon: createIcon('#fbbc04'), draggable: true }).addTo(map);
+            markerStop.on('dragend', function(e) {
+                pointStop.coords = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+                if (pointTo) calculateRoute();
+            });
+            if (pointTo) calculateRoute();
+        }
+
         function setPointTo(coords, name) {
             pointTo = { coords, name };
             document.getElementById('input-to').value = name;
-            
             if (markerTo) map.removeLayer(markerTo);
-            markerTo = L.marker(coords, {
-                icon: L.divIcon({
-                    html: '<div style="background:#ea4335;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>',
-                    iconSize: [16, 16], iconAnchor: [8, 8]
-                }),
-                draggable: true
-            }).addTo(map);
-            
+            markerTo = L.marker(coords, { icon: createIcon('#ea4335'), draggable: true }).addTo(map);
             markerTo.on('dragend', function(e) {
                 pointTo.coords = [e.target.getLatLng().lat, e.target.getLatLng().lng];
                 calculateRoute();
             });
-            
             calculateRoute();
         }
 
-        // ==================== МАРШРУТ ====================
+        function toggleStop() {
+            hasStop = !hasStop;
+            document.getElementById('stop-row').style.display = hasStop ? 'flex' : 'none';
+            document.getElementById('add-stop-btn').textContent = hasStop ? '— Убрать остановку' : '+ Добавить остановку';
+            if (!hasStop) {
+                pointStop = null;
+                if (markerStop) { map.removeLayer(markerStop); markerStop = null; }
+                document.getElementById('input-stop').value = '';
+                if (pointTo) calculateRoute();
+            }
+        }
+
+        // ========== МАРШРУТ ==========
         function calculateRoute() {
             if (!pointFrom || !pointTo) return;
-            
             if (routingControl) map.removeControl(routingControl);
             
+            let waypoints = [L.latLng(pointFrom.coords[0], pointFrom.coords[1])];
+            if (pointStop) waypoints.push(L.latLng(pointStop.coords[0], pointStop.coords[1]));
+            waypoints.push(L.latLng(pointTo.coords[0], pointTo.coords[1]));
+            
             routingControl = L.Routing.control({
-                waypoints: [
-                    L.latLng(pointFrom.coords[0], pointFrom.coords[1]),
-                    L.latLng(pointTo.coords[0], pointTo.coords[1])
-                ],
-                router: L.Routing.osrmv1({
-                    serviceUrl: 'https://router.project-osrm.org/route/v1',
-                    profile: 'driving'
-                }),
+                waypoints: waypoints,
+                router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'driving' }),
                 lineOptions: { styles: [{ color: '#34a853', weight: 6, opacity: 0.8 }] },
-                show: false,
-                addWaypoints: false,
-                createMarker: function() { return null; }
+                show: false, addWaypoints: false, createMarker: function() { return null; }
             }).addTo(map);
-
+            
             routingControl.on('routesfound', function(e) {
                 lastDistance = e.routes[0].summary.totalDistance;
                 lastTime = e.routes[0].summary.totalTime;
                 updatePrices();
                 document.getElementById('order-btn').disabled = false;
             });
+            
+            routingControl.on('routingerror', function() {
+                document.getElementById('route-summary').innerHTML = '⚠️ Не удалось построить маршрут';
+            });
         }
 
-        // ==================== ЦЕНЫ ====================
+        // ========== ЦЕНЫ ==========
+        const tariffs = {
+            econom: { name: 'Эконом', icon: '🚗', base: 400, perKm: 80 },
+            delivery: { name: 'Доставка', icon: '📦', base: 350, perKm: 60 },
+            comfort: { name: 'Комфорт', icon: '🚙', base: 600, perKm: 120 }
+        };
+
         function updatePrices() {
             if (!lastDistance) return;
-            
             const km = (lastDistance / 1000).toFixed(1);
             const min = Math.round(lastTime / 60);
             
-            const economPrice = Math.round(400 + (km * 80));
-            const deliveryPrice = Math.round(350 + (km * 60));
+            Object.entries(tariffs).forEach(([key, t]) => {
+                const price = Math.round(t.base + (km * t.perKm));
+                document.getElementById(`price-${key}`).textContent = price + ' ₸';
+                document.getElementById(`time-${key}`).textContent = '≈ ' + min + ' мин';
+            });
             
-            document.getElementById('price-econom').textContent = `${economPrice} ₸`;
-            document.getElementById('info-econom').textContent = `≈ ${min} мин · ${km} км`;
-            document.getElementById('price-delivery').textContent = `${deliveryPrice} ₸`;
-            document.getElementById('info-delivery').textContent = `≈ ${min} мин · ${km} км`;
-            document.getElementById('route-info').innerHTML = `📏 <strong>${km} км</strong> · ⏱ <strong>≈ ${min} мин</strong>`;
+            document.getElementById('route-summary').innerHTML = 
+                `📏 <strong>${km} км</strong> · ⏱ <strong>≈ ${min} мин</strong>` +
+                (pointStop ? ' · 🟡 С остановкой' : '');
         }
 
-        function selectTariff(tariff) {
-            selectedTariff = tariff;
-            document.querySelectorAll('.tariff-card').forEach(function(c) { c.classList.remove('active'); });
-            document.querySelectorAll('.tariff-card')[tariff === 'econom' ? 0 : 1].classList.add('active');
+        function selectTariff(t) {
+            selectedTariff = t;
+            document.querySelectorAll('.tariff-card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tariff-card')[Object.keys(tariffs).indexOf(t)].classList.add('active');
         }
 
-        // ==================== ЗАКАЗ ====================
-async function createOrder() {
-    if (!lastDistance) return;
-    
-    const km = (lastDistance / 1000).toFixed(1);
-    const min = Math.round(lastTime / 60);
-    let price;
-    
-    if (selectedTariff === 'econom') {
-        price = Math.round(400 + (km * 80));
-    } else {
-        price = Math.round(350 + (km * 60));
-    }
-    
-    // Сохраняем заказ через API
-    try {
-        const telegramId = tg.initDataUnsafe?.user?.id || 'test_user';
-        const name = document.getElementById('auth-name') ? document.getElementById('auth-name').value : 'Пользователь';
-        
-        await fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                passenger_id: String(telegramId),
-                passenger_name: name,
-                from_address: pointFrom.name,
-                from_lat: pointFrom.coords[0],
-                from_lng: pointFrom.coords[1],
-                to_address: pointTo.name,
-                to_lat: pointTo.coords[0],
-                to_lng: pointTo.coords[1],
-                distance_km: km,
-                duration_min: min,
-                tariff: selectedTariff,
-                price: price
-            })
-        });
-    } catch(e) {
-        console.log('Заказ не сохранён на сервере');
-    }
-    
-    // Показываем анимацию поиска
-    document.getElementById('searching-screen').classList.add('active');
-    
-    setTimeout(function() {
-        document.getElementById('searching-screen').classList.remove('active');
-        alert('🚖 Заказ создан!\n\nОткуда: ' + pointFrom.name + '\nКуда: ' + pointTo.name + '\nЦена: ' + price + ' ₸');
-    }, 3000);
-}
+        function toggleOption(opt) {
+            options[opt] = !options[opt];
+            document.getElementById('opt-' + opt).classList.toggle('active', options[opt]);
+        }
+
+        function togglePayment() {
+            const method = document.getElementById('payment-method').value;
+            document.getElementById('change-amount').classList.toggle('show', method === 'cash');
+        }
+
+        // ========== ЗАКАЗ ==========
+        function createOrder() {
+            const km = (lastDistance / 1000).toFixed(1);
+            const min = Math.round(lastTime / 60);
+            const t = tariffs[selectedTariff];
+            const price = Math.round(t.base + (km * t.perKm));
+            const payment = document.getElementById('payment-method').value;
+            const change = document.getElementById('change-amount').value;
+            
+            const order = {
+                from: pointFrom.name,
+                stop: pointStop ? pointStop.name : null,
+                to: pointTo.name,
+                km, min, price, tariff: selectedTariff,
+                payment: payment,
+                change: payment === 'cash' && change ? change + ' ₸' : null,
+                options: { ...options }
+            };
+            
+            document.getElementById('searching-overlay').classList.add('active');
+            
+            // Симуляция поиска
+            setTimeout(() => {
+                document.getElementById('searching-overlay').classList.remove('active');
+                showDriverFound();
+            }, 4000 + Math.random() * 3000);
+        }
 
         function cancelSearch() {
-            document.getElementById('searching-screen').classList.remove('active');
+            document.getElementById('searching-overlay').classList.remove('active');
         }
 
+        // ========== ВОДИТЕЛЬ НАЙДЕН ==========
+        function showDriverFound() {
+            const drivers = [
+                { name: 'Асхат', car: 'Toyota Camry', num: 'A123BC', rating: 4.9, eta: 5 },
+                { name: 'Ерлан', car: 'Hyundai Sonata', num: 'B456DE', rating: 4.7, eta: 7 },
+                { name: 'Даурен', car: 'Kia K5', num: 'C789FG', rating: 4.8, eta: 3 },
+            ];
+            const d = drivers[Math.floor(Math.random() * drivers.length)];
+            
+            document.getElementById('d-name').textContent = d.name;
+            document.getElementById('d-car').textContent = d.car + ' • ' + d.num;
+            document.getElementById('d-eta').textContent = d.eta + ' мин';
+            
+            document.getElementById('driver-found-overlay').classList.add('active');
+            
+            // Карта водителя
+            setTimeout(() => {
+                if (driverMap) driverMap.remove();
+                driverMap = L.map('driver-map', { zoomControl: false }).setView([52.4933, 78.1614], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMap);
+                L.marker([52.4933, 78.1614], {
+                    icon: L.divIcon({ html: '🚗', iconSize: [30, 30], className: '' })
+                }).addTo(driverMap);
+            }, 100);
+        }
+
+        function callDriver() { alert('📞 Звоним водителю...'); }
+        function chatDriver() { alert('💬 Открываем чат с водителем...'); }
+        function cancelRide() { 
+            document.getElementById('driver-found-overlay').classList.remove('active');
+            alert('Поездка отменена');
+        }
+
+        // ========== МЕНЮ ==========
+        function toggleMenu() {
+            document.getElementById('menu-overlay').classList.toggle('active');
+            if (currentUser) {
+                document.getElementById('menu-name').textContent = currentUser.name;
+                document.getElementById('menu-phone-display').textContent = currentUser.phone;
+            }
+        }
+        function openPage(page) { window.location.href = '/' + page; }
         function logout() {
+            currentUser = null;
             document.getElementById('main-screen').style.display = 'none';
             document.getElementById('auth-screen').style.display = 'flex';
+            document.getElementById('menu-overlay').classList.remove('active');
         }
+
+        // Запуск
+        document.getElementById('auth-screen').style.display = 'flex';
     </script>
 </body>
 </html>
