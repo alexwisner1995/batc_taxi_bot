@@ -5,720 +5,617 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>БАЦ Такси - Щербакты</title>
     
-    <!-- Подключаем Телеграм SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- Бесплатные карты Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Leaflet Routing Machine + OSRM (бесплатный роутинг по дорогам) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-        body, html { height: 100%; overflow: hidden; background-color: #f7f7f7; }
-        
-        /* Главная карта */
-        #map { height: 55vh; width: 100%; }
-        
-        /* Верхняя панель ввода адресов в стиле Bolt */
-        .search-container {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            right: 15px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            padding: 12px;
-            z-index: 1000;
+        :root {
+            --green: #34a853;
+            --red: #ea4335;
+            --dark: #1a1a1a;
+            --gray: #f5f5f5;
+            --border: #e0e0e0;
         }
-        .input-group {
-            display: flex;
-            align-items: center;
-            background: #f1f1f1;
-            border-radius: 10px;
-            padding: 8px 12px;
-            margin-bottom: 8px;
-            position: relative;
-        }
-        .input-group:last-child { margin-bottom: 0; }
-        .input-group input {
-            border: none;
-            background: transparent;
-            width: 100%;
-            font-size: 15px;
-            margin-left: 10px;
-            outline: none;
-            color: #333;
-        }
-        .input-group .clear-btn {
-            background: none;
-            border: none;
-            font-size: 18px;
-            cursor: pointer;
-            color: #999;
-            padding: 0 5px;
-            display: none;
-        }
-        .input-group .clear-btn.visible { display: block; }
-        .icon-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-        .dot-from { background: #34a853; }
-        .dot-to { background: #ea4335; }
 
-        /* Список подсказок адресов */
-        .suggestions {
-            background: white;
-            border-radius: 10px;
-            margin-top: 5px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body, html { height: 100%; overflow: hidden; background: var(--dark); color: white; }
+
+        /* Экран авторизации */
+        #auth-screen {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.95); z-index: 10000;
+            display: flex; align-items: flex-end; justify-content: center;
+        }
+        .auth-sheet {
+            background: white; width: 100%; max-width: 500px;
+            border-radius: 24px 24px 0 0; padding: 30px 20px; color: #333;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        .auth-logo { font-size: 32px; font-weight: bold; text-align: center; margin-bottom: 20px; color: var(--green); }
+        .auth-input {
+            width: 100%; padding: 14px; margin: 8px 0;
+            border: 2px solid var(--border); border-radius: 12px; font-size: 16px;
+        }
+        .auth-input:focus { outline: none; border-color: var(--green); }
+        .auth-button {
+            width: 100%; padding: 16px; background: var(--green); color: white;
+            border: none; border-radius: 12px; font-size: 18px; font-weight: bold;
+            margin-top: 16px; cursor: pointer;
+        }
+        .auth-button:active { transform: scale(0.98); }
+        
+        /* Карта */
+        #map { height: 100vh; width: 100%; position: absolute; top: 0; left: 0; }
+        
+        /* Панель поиска */
+        .search-panel {
+            position: fixed; top: 20px; left: 15px; right: 15px;
+            background: white; border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 1000; padding: 12px;
+        }
+        .search-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px; background: var(--gray); border-radius: 10px; margin-bottom: 8px;
+        }
+        .search-dot {
+            width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+        }
+        .dot-from { background: var(--green); }
+        .dot-to { background: var(--red); }
+        .search-input {
+            flex: 1; border: none; background: transparent;
+            font-size: 15px; outline: none; color: #333;
+        }
+        .suggestions-list {
+            background: white; border-radius: 10px; max-height: 200px;
+            overflow-y: auto; display: none;
         }
         .suggestion-item {
-            padding: 12px 14px;
-            font-size: 14px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-            transition: background 0.15s;
+            padding: 12px; cursor: pointer; border-bottom: 1px solid var(--border);
         }
-        .suggestion-item:hover { background: #f5f5f5; }
-        .suggestion-item:last-child { border-bottom: none; }
-        .suggestion-item .place-name { font-weight: 500; color: #333; }
-        .suggestion-item .place-address { font-size: 12px; color: #888; margin-top: 2px; }
-        .suggestions-loading {
-            padding: 16px;
-            text-align: center;
-            color: #888;
-            font-size: 14px;
-        }
-
-        /* Нижняя панель с тарифами */
-        .bottom-sheet {
-            height: 45vh;
-            width: 100%;
-            background: white;
-            position: absolute;
-            bottom: 0;
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            z-index: 1001;
-            transition: transform 0.3s ease;
-        }
+        .suggestion-item:hover { background: var(--gray); }
         
-        .info-text {
-            font-size: 13px;
-            color: #777;
-            text-align: center;
-            margin-bottom: 10px;
-            min-height: 20px;
+        /* Кнопка геолокации */
+        .location-btn {
+            position: fixed; right: 15px; bottom: 250px;
+            width: 44px; height: 44px; background: white; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;
+            cursor: pointer; font-size: 20px;
         }
-        .info-text .highlight { color: #34a853; font-weight: 600; }
-
-        .tariff-container {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 15px;
+        .location-btn:active { transform: scale(0.9); }
+        
+        /* Нижняя панель */
+        .bottom-sheet {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: white; border-radius: 24px 24px 0 0;
+            padding: 20px; z-index: 1001; max-height: 40vh; overflow-y: auto;
+        }
+        .bottom-handle {
+            width: 40px; height: 4px; background: #ddd;
+            border-radius: 2px; margin: 0 auto 15px;
+        }
+        .tariff-row {
+            display: flex; gap: 10px; margin: 15px 0;
         }
         .tariff-card {
-            flex: 1;
-            border: 2px solid #eee;
-            border-radius: 16px;
-            padding: 14px;
-            text-align: center;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s ease;
+            flex: 1; border: 2px solid var(--border); border-radius: 16px;
+            padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s;
         }
-        .tariff-card.active {
-            border-color: #34a853;
-            background: #f4fbf6;
-            transform: scale(1.03);
-        }
-        .tariff-title { font-size: 16px; font-weight: bold; color: #333; }
-        .tariff-price { font-size: 14px; color: #34a853; font-weight: 600; margin-top: 5px; }
-        .tariff-time { font-size: 12px; color: #999; margin-top: 3px; }
+        .tariff-card.active { border-color: var(--green); background: #f0faf3; }
+        .tariff-name { font-weight: 600; color: #333; font-size: 14px; }
+        .tariff-price { color: var(--green); font-weight: bold; font-size: 16px; margin-top: 4px; }
+        .tariff-info { font-size: 12px; color: #888; margin-top: 4px; }
         
-        /* Кнопка заказа */
-        .btn-order {
-            background: #34a853;
-            color: white;
-            border: none;
-            padding: 16px;
-            border-radius: 14px;
-            font-size: 18px;
-            font-weight: bold;
-            width: 100%;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(52, 168, 83, 0.3);
-            transition: all 0.2s ease;
+        .order-btn {
+            width: 100%; padding: 16px; background: var(--green); color: white;
+            border: none; border-radius: 12px; font-size: 18px; font-weight: bold;
+            cursor: pointer; margin-top: 12px;
         }
-        .btn-order:active { transform: scale(0.97); }
-        .btn-order:disabled {
-            background: #cccccc;
-            box-shadow: none;
-            cursor: not-allowed;
+        .order-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .order-btn:active { transform: scale(0.98); }
+        
+        .route-info {
+            text-align: center; color: #666; font-size: 14px;
+            padding: 10px; background: var(--gray); border-radius: 10px; margin: 10px 0;
         }
-
-        /* Спиннер загрузки */
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid #ccc;
-            border-top-color: #34a853;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 6px;
+        .route-info strong { color: var(--green); }
+        
+        /* Экран поиска */
+        #searching-screen {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9); z-index: 10000;
+            flex-direction: column; align-items: center; justify-content: center; color: white;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        #searching-screen.active { display: flex; }
+        .radar {
+            width: 120px; height: 120px; border: 3px solid var(--green);
+            border-radius: 50%; animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .searching-text { margin-top: 20px; font-size: 18px; text-align: center; }
+        .cancel-btn {
+            margin-top: 30px; padding: 12px 30px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+            color: white; border-radius: 20px; cursor: pointer;
+        }
+        
+        /* Меню */
+        #menu-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); z-index: 10002;
+        }
+        #menu-overlay.active { display: block; }
+        .menu-sheet {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: white; border-radius: 24px 24px 0 0;
+            padding: 20px; animation: slideUp 0.3s ease;
+        }
+        .menu-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 16px; cursor: pointer; border-radius: 12px; color: #333; font-size: 16px;
+        }
+        .menu-item:hover { background: var(--gray); }
+        
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0;
+            background: var(--dark); padding: 45px 20px 15px;
+            display: flex; justify-content: space-between; align-items: center; z-index: 999;
+        }
+        .top-bar-title { font-size: 20px; font-weight: bold; }
+        .avatar-btn {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: var(--green); display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: bold; cursor: pointer; border: none; color: white;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Верхний блок ввода адресов -->
-    <div class="search-container">
-        <div class="input-group" id="group-from">
-            <span class="icon-dot dot-from"></span>
-            <input type="text" id="input-from" placeholder="Откуда (например: Вокзал)" autocomplete="off">
-            <button class="clear-btn" id="clear-from">✕</button>
+    <!-- Авторизация -->
+    <div id="auth-screen">
+        <div class="auth-sheet">
+            <div class="auth-logo">🚖 БАЦ Такси</div>
+            <input type="text" id="auth-name" class="auth-input" placeholder="Ваше имя" />
+            <input type="tel" id="auth-phone" class="auth-input" placeholder="+7 (XXX) XXX-XX-XX" />
+            <button class="auth-button" onclick="login()">Продолжить</button>
         </div>
-        <div class="input-group" id="group-to">
-            <span class="icon-dot dot-to"></span>
-            <input type="text" id="input-to" placeholder="Куда едем?" autocomplete="off">
-            <button class="clear-btn" id="clear-to">✕</button>
-        </div>
-        <div id="suggestions-box" class="suggestions"></div>
     </div>
 
-    <!-- Карта -->
-    <div id="map"></div>
+    <!-- Основной экран -->
+    <div id="main-screen" style="display: none;">
+        <!-- Верхняя панель -->
+        <div class="top-bar">
+            <div class="top-bar-title">🚖 БАЦ Такси</div>
+            <button class="avatar-btn" onclick="toggleMenu()">👤</button>
+        </div>
 
-    <!-- Нижняя панель Bolt -->
-    <div class="bottom-sheet">
-        <div>
-            <div class="info-text" id="route-info">💡 Введите адрес или кликните на карту, чтобы выбрать точку назначения</div>
-            
-            <div class="tariff-container">
+        <!-- Карта -->
+        <div id="map"></div>
+
+        <!-- Кнопка геолокации -->
+        <div class="location-btn" onclick="getLocation()">📍</div>
+
+        <!-- Панель поиска -->
+        <div class="search-panel" id="search-panel">
+            <div class="search-row">
+                <div class="search-dot dot-from"></div>
+                <input type="text" class="search-input" id="input-from" placeholder="Откуда?" />
+            </div>
+            <div class="search-row">
+                <div class="search-dot dot-to"></div>
+                <input type="text" class="search-input" id="input-to" placeholder="Куда?" />
+            </div>
+            <div class="suggestions-list" id="suggestions-list"></div>
+        </div>
+
+        <!-- Нижняя панель -->
+        <div class="bottom-sheet">
+            <div class="bottom-handle"></div>
+            <div class="route-info" id="route-info">💡 Выберите точки на карте или введите адрес</div>
+            <div class="tariff-row" id="tariff-row">
                 <div class="tariff-card active" id="tariff-econom" onclick="selectTariff('econom')">
-                    <div class="tariff-title">🚗 Эконом</div>
+                    <div class="tariff-name">🚗 Эконом</div>
                     <div class="tariff-price" id="price-econom">— ₸</div>
-                    <div class="tariff-time" id="time-econom"></div>
+                    <div class="tariff-info" id="info-econom"></div>
                 </div>
                 <div class="tariff-card" id="tariff-delivery" onclick="selectTariff('delivery')">
-                    <div class="tariff-title">📦 Доставка</div>
+                    <div class="tariff-name">📦 Доставка</div>
                     <div class="tariff-price" id="price-delivery">— ₸</div>
-                    <div class="tariff-time" id="time-delivery"></div>
+                    <div class="tariff-info" id="info-delivery"></div>
                 </div>
             </div>
+            <button class="order-btn" id="order-btn" disabled onclick="createOrder()">Заказать БАЦ</button>
         </div>
-        
-        <button class="btn-order" id="btn-submit" disabled onclick="sendOrder()">Раз, два, БАЦ — поехали!</button>
+
+        <!-- Экран поиска машины -->
+        <div id="searching-screen">
+            <div class="radar"></div>
+            <div class="searching-text">🔍 Ищем ближайшую машину...</div>
+            <div style="color: #999; margin-top: 8px;">Обычно 1-3 минуты</div>
+            <button class="cancel-btn" onclick="cancelSearch()">Отменить</button>
+        </div>
+
+        <!-- Меню -->
+        <div id="menu-overlay" onclick="if(event.target === this) toggleMenu()">
+            <div class="menu-sheet">
+                <div style="text-align: center; padding: 10px;">
+                    <div style="font-size: 20px; font-weight: bold; color: #333;" id="menu-name"></div>
+                    <div style="color: #888; font-size: 14px;" id="menu-phone"></div>
+                </div>
+                <div style="height: 1px; background: var(--border); margin: 10px 0;"></div>
+                <div class="menu-item" onclick="openPage('passenger.html')">📋 История поездок</div>
+                <div class="menu-item" onclick="openPage('driver.html')">🚗 Кабинет водителя</div>
+                <div class="menu-item" id="admin-menu-item" style="display: none;" onclick="openPage('admin.html')">⚙️ Панель администратора</div>
+                <div style="height: 1px; background: var(--border); margin: 10px 0;"></div>
+                <div class="menu-item" onclick="logout()">🚪 Выйти</div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM ====================
+        // ==================== TELEGRAM ====================
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
 
-        // ==================== КОНФИГУРАЦИЯ ТАРИФОВ ====================
-        const TARIFFS = {
-            econom: {
-                name: 'Эконом',
-                basePrice: 400,
-                pricePerKm: 80,
-                icon: '🚗'
-            },
-            delivery: {
-                name: 'Доставка',
-                basePrice: 350,
-                pricePerKm: 60,
-                icon: '📦'
-            }
-        };
+        const telegramId = tg.initDataUnsafe?.user?.id || 'test_user';
+        const telegramName = tg.initDataUnsafe?.user?.first_name || '';
 
-        // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
-        let pointFrom = { 
-            name: "Шарбакты (Центр)", 
-            coords: [52.4933, 78.1614],
-            displayName: "Шарбакты (Центр)"
-        };
+        // ==================== ПЕРЕМЕННЫЕ ====================
+        let currentUser = null;
+        let pointFrom = null;
         let pointTo = null;
         let selectedTariff = 'econom';
-        
-        // Слои карты
         let routingControl = null;
+        let map = null;
         let markerFrom = null;
         let markerTo = null;
-        
-        // Данные последнего маршрута
-        let lastRouteData = {
-            distance: null,  // в метрах
-            time: null       // в секундах
+        let lastRouteData = { distance: null, time: null };
+        let searchTimeout = null;
+        let settings = {
+            econom_base_price: 400,
+            econom_price_per_km: 80,
+            delivery_base_price: 350,
+            delivery_price_per_km: 60
         };
 
-        // Таймер для debounce поиска
-        let searchTimeout = null;
-        // Флаг для отслеживания активного поля ввода
-        let activeSearchField = 'to'; // 'from' или 'to'
-
-        // ==================== НАСТРОЙКА КАРТЫ ====================
-        const map = L.map('map', { zoomControl: false }).setView([52.4933, 78.1614], 14);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 19
-        }).addTo(map);
-
-        // Создаём кастомные иконки для маркеров
-        const iconFrom = L.divIcon({
-            className: 'custom-marker',
-            html: '<div style="background: #34a853; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
-        
-        const iconTo = L.divIcon({
-            className: 'custom-marker',
-            html: '<div style="background: #ea4335; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
-
-        // Маркер "Откуда" (по умолчанию в центре)
-        markerFrom = L.marker(pointFrom.coords, { icon: iconFrom, draggable: true }).addTo(map);
-        markerFrom.bindPopup('📍 <b>Откуда</b><br>' + pointFrom.displayName);
-
-        // При перетаскивании маркера "Откуда" обновляем точку
-        markerFrom.on('dragend', function(e) {
-            const pos = e.target.getLatLng();
-            pointFrom.coords = [pos.lat, pos.lng];
-            pointFrom.name = `Точка (${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)})`;
-            pointFrom.displayName = pointFrom.name;
-            document.getElementById('input-from').value = pointFrom.name;
-            reverseGeocode(pos.lat, pos.lng, 'from');
-            calculateRoute();
-        });
-
-        // ==================== ОБРАБОТКА КЛИКА ПО КАРТЕ ====================
-        map.on('click', function(e) {
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-            setPointTo([lat, lng], `Точка на карте (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-            reverseGeocode(lat, lng, 'to');
-        });
-
-        // ==================== ФУНКЦИИ РАБОТЫ С ТОЧКАМИ ====================
-        function setPointTo(coords, displayName) {
-            pointTo = { 
-                name: displayName, 
-                coords: coords,
-                displayName: displayName
+        // ==================== API ЗАПРОСЫ ====================
+        async function api(endpoint, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' }
             };
-            document.getElementById('input-to').value = displayName;
-            document.getElementById('clear-to').classList.add('visible');
-
-            if (markerTo) map.removeLayer(markerTo);
-            markerTo = L.marker(coords, { icon: iconTo, draggable: true }).addTo(map);
-            markerTo.bindPopup('🔴 <b>Куда</b><br>' + displayName);
+            if (body) options.body = JSON.stringify(body);
             
-            markerTo.on('dragend', function(e) {
-                const pos = e.target.getLatLng();
-                pointTo.coords = [pos.lat, pos.lng];
-                pointTo.name = `Точка (${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)})`;
-                pointTo.displayName = pointTo.name;
-                document.getElementById('input-to').value = pointTo.name;
-                reverseGeocode(pos.lat, pos.lng, 'to');
-                calculateRoute();
-            });
-
-            calculateRoute();
+            const response = await fetch(`/api/${endpoint}`, options);
+            return response.json();
         }
 
-        function setPointFrom(coords, displayName) {
-            pointFrom.coords = coords;
-            pointFrom.name = displayName;
-            pointFrom.displayName = displayName;
-            document.getElementById('input-from').value = displayName;
-            document.getElementById('clear-from').classList.add('visible');
-
-            markerFrom.setLatLng(coords);
-            markerFrom.setPopupContent('📍 <b>Откуда</b><br>' + displayName);
-
-            calculateRoute();
-        }
-
-        // ==================== ГЕОКОДИНГ: Nominatim API ====================
-        async function searchAddress(query, targetField) {
-            if (!query || query.trim().length < 2) {
-                document.getElementById('suggestions-box').style.display = 'none';
+        // ==================== АВТОРИЗАЦИЯ ====================
+        async function login() {
+            const name = document.getElementById('auth-name').value.trim();
+            const phone = document.getElementById('auth-phone').value.trim();
+            
+            if (!name || !phone) {
+                alert('Заполните все поля');
                 return;
             }
 
-            // Показываем индикатор загрузки
-            const box = document.getElementById('suggestions-box');
-            box.innerHTML = '<div class="suggestions-loading"><span class="spinner"></span> Поиск адресов...</div>';
-            box.style.display = 'block';
-
-            // Формируем запрос к Nominatim с ограничением по Шарбактинскому району
-            const params = new URLSearchParams({
-                q: query + ', Щербактинский район, Павлодарская область, Казахстан',
-                format: 'json',
-                limit: 5,
-                addressdetails: 1,
-                'accept-language': 'ru',
-                bounded: 1,
-                viewbox: '77.8,52.3,78.5,52.7' // Примерные границы района
+            const result = await api('auth', 'POST', {
+                telegram_id: telegramId,
+                first_name: name,
+                phone: phone,
+                role: 'passenger'
             });
 
+            if (result.success) {
+                currentUser = result.user;
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('main-screen').style.display = 'block';
+                initApp();
+            }
+        }
+
+        // ==================== ЗАГРУЗКА НАСТРОЕК ====================
+        async function loadSettings() {
             try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-                    headers: {
-                        'User-Agent': 'BATSTaxiBot/1.0 (Telegram Mini App)'
-                    }
-                });
-                
-                if (!response.ok) throw new Error('Ошибка сети');
-                
-                const data = await response.json();
-                
-                if (data.length === 0) {
-                    box.innerHTML = '<div class="suggestions-loading">😔 Ничего не найдено. Попробуйте изменить запрос.</div>';
-                    return;
-                }
-
-                // Отображаем результаты
-                box.innerHTML = '';
-                data.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'suggestion-item';
-                    
-                    const name = item.display_name.split(',')[0] || item.display_name;
-                    const address = item.display_name.split(',').slice(1, 4).join(',') || '';
-                    
-                    div.innerHTML = `
-                        <div class="place-name">📍 ${name}</div>
-                        <div class="place-address">${address}</div>
-                    `;
-                    
-                    div.onclick = function() {
-                        const coords = [parseFloat(item.lat), parseFloat(item.lon)];
-                        if (targetField === 'from') {
-                            setPointFrom(coords, item.display_name);
-                        } else {
-                            setPointTo(coords, item.display_name);
-                        }
-                        box.style.display = 'none';
-                    };
-                    
-                    box.appendChild(div);
-                });
-                
-            } catch (error) {
-                console.error('Ошибка геокодинга:', error);
-                box.innerHTML = '<div class="suggestions-loading">⚠️ Ошибка поиска. Проверьте подключение к интернету.</div>';
+                const data = await api('settings');
+                if (data.econom_base_price) settings = data;
+            } catch (e) {
+                console.log('Используем настройки по умолчанию');
             }
-        }
-
-        // Обратный геокодинг (координаты → адрес)
-        async function reverseGeocode(lat, lng, targetField) {
-            try {
-                const params = new URLSearchParams({
-                    lat: lat,
-                    lon: lng,
-                    format: 'json',
-                    'accept-language': 'ru'
-                });
-
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
-                    headers: {
-                        'User-Agent': 'BATSTaxiBot/1.0 (Telegram Mini App)'
-                    }
-                });
-                
-                if (!response.ok) return;
-                
-                const data = await response.json();
-                
-                if (data.display_name) {
-                    const shortName = data.display_name.split(',')[0] || data.display_name;
-                    if (targetField === 'from') {
-                        pointFrom.name = data.display_name;
-                        pointFrom.displayName = shortName;
-                        document.getElementById('input-from').value = shortName;
-                        markerFrom.setPopupContent('📍 <b>Откуда</b><br>' + shortName);
-                    } else {
-                        pointTo.name = data.display_name;
-                        pointTo.displayName = shortName;
-                        document.getElementById('input-to').value = shortName;
-                        if (markerTo) markerTo.setPopupContent('🔴 <b>Куда</b><br>' + shortName);
-                    }
-                }
-            } catch (error) {
-                console.error('Ошибка обратного геокодинга:', error);
-            }
-        }
-
-        // ==================== МАРШРУТИЗАЦИЯ: OSRM через Leaflet Routing Machine ====================
-        function calculateRoute() {
-            if (!pointFrom || !pointTo) return;
-
-            // Удаляем старый маршрут
-            if (routingControl) {
-                map.removeControl(routingControl);
-                routingControl = null;
-            }
-
-            const waypoints = [
-                L.latLng(pointFrom.coords[0], pointFrom.coords[1]),
-                L.latLng(pointTo.coords[0], pointTo.coords[1])
-            ];
-
-            // Создаём новый маршрут через OSRM (бесплатный демо-сервер)
-            routingControl = L.Routing.control({
-                waypoints: waypoints,
-                router: L.Routing.osrmv1({
-                    serviceUrl: 'https://router.project-osrm.org/route/v1',
-                    profile: 'driving', // Автомобильный маршрут
-                    language: 'ru'
-                }),
-                lineOptions: {
-                    styles: [
-                        { color: '#34a853', weight: 6, opacity: 0.8 }
-                    ],
-                    extendToWaypoints: true,
-                    missingRouteTolerance: 100
-                },
-                show: false,          // Скрываем текстовую панель с инструкциями
-                addWaypoints: false,   // Запрещаем добавление точек кликом
-                draggableWaypoints: false,
-                fitSelectedRoutes: true,
-                routeWhileDragging: false,
-                createMarker: function() { return null; } // Не создаём дополнительные маркеры
-            }).addTo(map);
-
-            // Обработчик успешного построения маршрута
-            routingControl.on('routesfound', function(e) {
-                const route = e.routes[0];
-                lastRouteData.distance = route.summary.totalDistance; // в метрах
-                lastRouteData.time = route.summary.totalTime;         // в секундах
-
-                updatePriceDisplay();
-                document.getElementById('btn-submit').disabled = false;
-            });
-
-            // Обработчик ошибки маршрутизации
-            routingControl.on('routingerror', function(e) {
-                console.error('Ошибка маршрутизации:', e.error);
-                document.getElementById('route-info').innerHTML = 
-                    '⚠️ Не удалось построить маршрут по дорогам. Возможно, точки слишком далеко.';
-                
-                // Fallback: считаем по прямой
-                const dist = map.distance(waypoints[0], waypoints[1]);
-                lastRouteData.distance = dist;
-                lastRouteData.time = dist / 13.9 * 60; // Примерное время при 40 км/ч
-                updatePriceDisplay();
-            });
-        }
-
-        // ==================== РАСЧЁТ И ОТОБРАЖЕНИЕ ЦЕНЫ ====================
-        function updatePriceDisplay() {
-            if (!lastRouteData.distance) return;
-
-            const distanceKm = (lastRouteData.distance / 1000).toFixed(1);
-            const timeMin = Math.round(lastRouteData.time / 60);
-
-            // Расчёт для обоих тарифов
-            Object.keys(TARIFFS).forEach(tariffKey => {
-                const tariff = TARIFFS[tariffKey];
-                const price = Math.round(tariff.basePrice + (distanceKm * tariff.pricePerKm));
-                
-                document.getElementById(`price-${tariffKey}`).innerText = `${price} ₸`;
-                document.getElementById(`time-${tariffKey}`).innerText = 
-                    timeMin > 0 ? `≈ ${timeMin} мин` : '';
-            });
-
-            // Обновляем информационную строку
-            document.getElementById('route-info').innerHTML = 
-                `📐 <span class="highlight">${distanceKm} км</span> по дорогам района · ≈ <span class="highlight">${timeMin} мин</span>`;
-        }
-
-        // ==================== ПЕРЕКЛЮЧЕНИЕ ТАРИФОВ ====================
-        function selectTariff(tariff) {
-            selectedTariff = tariff;
-            
-            // Убираем активный класс со всех карточек
-            document.querySelectorAll('.tariff-card').forEach(card => {
-                card.classList.remove('active');
-            });
-            
-            // Добавляем активный класс выбранной карточке
-            const activeCard = document.getElementById(`tariff-${tariff}`);
-            if (activeCard) activeCard.classList.add('active');
-        }
-
-        // ==================== ОБРАБОТЧИКИ ВВОДА АДРЕСОВ ====================
-        const inputFrom = document.getElementById('input-from');
-        const inputTo = document.getElementById('input-to');
-        const suggestionsBox = document.getElementById('suggestions-box');
-        const clearFrom = document.getElementById('clear-from');
-        const clearTo = document.getElementById('clear-to');
-
-        // Поле "Откуда"
-        inputFrom.addEventListener('focus', function() {
-            activeSearchField = 'from';
-            if (this.value) {
-                searchAddress(this.value, 'from');
-            }
-        });
-
-        inputFrom.addEventListener('input', function() {
-            activeSearchField = 'from';
-            clearTimeout(searchTimeout);
-            
-            if (this.value) {
-                clearFrom.classList.add('visible');
-            } else {
-                clearFrom.classList.remove('visible');
-            }
-            
-            searchTimeout = setTimeout(() => {
-                searchAddress(this.value, 'from');
-            }, 500); // Debounce 500ms
-        });
-
-        clearFrom.addEventListener('click', function() {
-            inputFrom.value = '';
-            clearFrom.classList.remove('visible');
-            suggestionsBox.style.display = 'none';
-            // Сбрасываем на центр
-            pointFrom = { 
-                name: "Шарбакты (Центр)", 
-                coords: [52.4933, 78.1614],
-                displayName: "Шарбакты (Центр)"
-            };
-            markerFrom.setLatLng([52.4933, 78.1614]);
-            calculateRoute();
-        });
-
-        // Поле "Куда"
-        inputTo.addEventListener('focus', function() {
-            activeSearchField = 'to';
-            if (this.value) {
-                searchAddress(this.value, 'to');
-            }
-        });
-
-        inputTo.addEventListener('input', function() {
-            activeSearchField = 'to';
-            clearTimeout(searchTimeout);
-            
-            if (this.value) {
-                clearTo.classList.add('visible');
-            } else {
-                clearTo.classList.remove('visible');
-            }
-            
-            searchTimeout = setTimeout(() => {
-                searchAddress(this.value, 'to');
-            }, 500);
-        });
-
-        clearTo.addEventListener('click', function() {
-            inputTo.value = '';
-            clearTo.classList.remove('visible');
-            suggestionsBox.style.display = 'none';
-            pointTo = null;
-            if (markerTo) {
-                map.removeLayer(markerTo);
-                markerTo = null;
-            }
-            if (routingControl) {
-                map.removeControl(routingControl);
-                routingControl = null;
-            }
-            lastRouteData.distance = null;
-            lastRouteData.time = null;
-            document.getElementById('btn-submit').disabled = true;
-            document.getElementById('route-info').innerHTML = '💡 Введите адрес или кликните на карту, чтобы выбрать точку назначения';
-            
-            // Сбрасываем цены
-            Object.keys(TARIFFS).forEach(key => {
-                document.getElementById(`price-${key}`).innerText = '— ₸';
-                document.getElementById(`time-${key}`).innerText = '';
-            });
-        });
-
-        // Скрываем подсказки при клике вне поля поиска
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.search-container')) {
-                suggestionsBox.style.display = 'none';
-            }
-        });
-
-        // ==================== ОТПРАВКА ЗАКАЗА ====================
-        function sendOrder() {
-            if (!pointFrom || !pointTo || !lastRouteData.distance) {
-                tg.showPopup({
-                    title: '⚠️ Ошибка',
-                    message: 'Пожалуйста, выберите точки отправления и назначения.',
-                    buttons: [{ type: 'ok', text: 'Хорошо' }]
-                });
-                return;
-            }
-
-            const distanceKm = (lastRouteData.distance / 1000).toFixed(1);
-            const timeMin = Math.round(lastRouteData.time / 60);
-            
-            let currentPrice;
-            if (selectedTariff === 'econom') {
-                currentPrice = Math.round(TARIFFS.econom.basePrice + (distanceKm * TARIFFS.econom.pricePerKm));
-            } else {
-                currentPrice = Math.round(TARIFFS.delivery.basePrice + (distanceKm * TARIFFS.delivery.pricePerKm));
-            }
-
-            const tariffName = TARIFFS[selectedTariff].name;
-            const tariffIcon = TARIFFS[selectedTariff].icon;
-
-            tg.showPopup({
-                title: `${tariffIcon} Заказ отправлен!`,
-                message: `Ищем машину для Вас!\n\n📍 Откуда: ${pointFrom.displayName}\n🔴 Куда: ${pointTo.displayName}\n📏 Расстояние: ${distanceKm} км\n⏱ Примерное время: ${timeMin} мин\n💰 Тариф: ${tariffName}\n💵 Стоимость: ${currentPrice} ₸`,
-                buttons: [
-                    { id: 'ok', type: 'ok', text: 'БАЦ — жду машину!' }
-                ]
-            });
-
-            // Здесь будет интеграция с бэкендом
-            console.log('Заказ:', {
-                from: pointFrom,
-                to: pointTo,
-                distance: lastRouteData.distance,
-                time: lastRouteData.time,
-                tariff: selectedTariff,
-                price: currentPrice,
-                timestamp: new Date().toISOString()
-            });
         }
 
         // ==================== ИНИЦИАЛИЗАЦИЯ ====================
-        // Устанавливаем начальное значение для поля "Откуда"
-        inputFrom.value = pointFrom.displayName;
-        clearFrom.classList.add('visible');
+        async function initApp() {
+            await loadSettings();
+            
+            // Карта
+            map = L.map('map', { zoomControl: false }).setView([52.4933, 78.1614], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        console.log('🚖 БАЦ Такси инициализировано');
-        console.log('📍 Карта: OpenStreetMap + Leaflet');
-        console.log('🔍 Геокодинг: Nominatim (OpenStreetMap)');
-        console.log('🛣 Маршрутизация: OSRM (бесплатный сервер)');
-        console.log('📱 Telegram Mini App готов к работе');
+            // Маркер "Откуда"
+            markerFrom = L.marker([52.4933, 78.1614], {
+                icon: L.divIcon({
+                    html: '<div style="background: #34a853; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [16, 16], iconAnchor: [8, 8]
+                }),
+                draggable: true
+            }).addTo(map);
+            
+            pointFrom = { coords: [52.4933, 78.1614], name: 'Шарбакты (Центр)' };
+            document.getElementById('input-from').value = 'Шарбакты (Центр)';
+
+            // Клик по карте
+            map.on('click', function(e) {
+                setPointTo([e.latlng.lat, e.latlng.lng], `Точка (${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)})`);
+            });
+
+            // Перетаскивание "Откуда"
+            markerFrom.on('dragend', function(e) {
+                pointFrom.coords = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+                if (pointTo) calculateRoute();
+            });
+
+            // Поиск адресов
+            document.getElementById('input-from').addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => searchAddress(this.value, 'from'), 500);
+            });
+            
+            document.getElementById('input-to').addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => searchAddress(this.value, 'to'), 500);
+            });
+
+            // Админ-меню
+            if (currentUser.role === 'admin') {
+                document.getElementById('admin-menu-item').style.display = 'flex';
+            }
+        }
+
+        // ==================== ГЕОЛОКАЦИЯ ====================
+        function getLocation() {
+            if (!navigator.geolocation) {
+                alert('Геолокация не поддерживается');
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    markerFrom.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+                    pointFrom.coords = [pos.coords.latitude, pos.coords.longitude];
+                    pointFrom.name = 'Моё местоположение';
+                    document.getElementById('input-from').value = 'Моё местоположение';
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+                    if (pointTo) calculateRoute();
+                },
+                () => alert('Не удалось определить местоположение')
+            );
+        }
+
+        // ==================== ПОИСК АДРЕСОВ ====================
+        async function searchAddress(query, target) {
+            if (!query || query.length < 2) {
+                document.getElementById('suggestions-list').style.display = 'none';
+                return;
+            }
+
+            const params = new URLSearchParams({
+                q: `${query}, Щербакты, Павлодарская область`,
+                format: 'json',
+                limit: 5,
+                'accept-language': 'ru'
+            });
+
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
+                const data = await response.json();
+                
+                const list = document.getElementById('suggestions-list');
+                list.innerHTML = '';
+                
+                if (data.length === 0) {
+                    list.innerHTML = '<div class="suggestion-item">Ничего не найдено</div>';
+                } else {
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'suggestion-item';
+                        div.innerHTML = `📍 ${item.display_name.split(',')[0]}<br><small style="color:#888">${item.display_name.split(',').slice(1,3).join(',')}</small>`;
+                        div.onclick = () => {
+                            const coords = [parseFloat(item.lat), parseFloat(item.lng)];
+                            if (target === 'from') {
+                                setPointFrom(coords, item.display_name.split(',')[0]);
+                            } else {
+                                setPointTo(coords, item.display_name.split(',')[0]);
+                            }
+                            list.style.display = 'none';
+                        };
+                        list.appendChild(div);
+                    });
+                }
+                list.style.display = 'block';
+            } catch (e) {
+                console.error('Ошибка поиска:', e);
+            }
+        }
+
+        // ==================== ТОЧКИ МАРШРУТА ====================
+        function setPointFrom(coords, name) {
+            pointFrom = { coords, name };
+            document.getElementById('input-from').value = name;
+            markerFrom.setLatLng(coords);
+            if (pointTo) calculateRoute();
+        }
+
+        function setPointTo(coords, name) {
+            pointTo = { coords, name };
+            document.getElementById('input-to').value = name;
+            
+            if (markerTo) map.removeLayer(markerTo);
+            markerTo = L.marker(coords, {
+                icon: L.divIcon({
+                    html: '<div style="background: #ea4335; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [16, 16], iconAnchor: [8, 8]
+                }),
+                draggable: true
+            }).addTo(map);
+            
+            markerTo.on('dragend', function(e) {
+                pointTo.coords = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+                calculateRoute();
+            });
+            
+            calculateRoute();
+        }
+
+        // ==================== МАРШРУТИЗАЦИЯ ====================
+        function calculateRoute() {
+            if (!pointFrom || !pointTo) return;
+            
+            if (routingControl) map.removeControl(routingControl);
+            
+            routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(pointFrom.coords[0], pointFrom.coords[1]),
+                    L.latLng(pointTo.coords[0], pointTo.coords[1])
+                ],
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1',
+                    profile: 'driving'
+                }),
+                lineOptions: { styles: [{ color: '#34a853', weight: 6, opacity: 0.8 }] },
+                show: false,
+                addWaypoints: false,
+                createMarker: function() { return null; }
+            }).addTo(map);
+
+            routingControl.on('routesfound', function(e) {
+                lastRouteData.distance = e.routes[0].summary.totalDistance;
+                lastRouteData.time = e.routes[0].summary.totalTime;
+                updatePrices();
+                document.getElementById('order-btn').disabled = false;
+            });
+        }
+
+        // ==================== ЦЕНЫ ====================
+        function updatePrices() {
+            if (!lastRouteData.distance) return;
+            
+            const km = (lastRouteData.distance / 1000).toFixed(1);
+            const min = Math.round(lastRouteData.time / 60);
+            
+            const economPrice = Math.round(settings.econom_base_price + (km * settings.econom_price_per_km));
+            const deliveryPrice = Math.round(settings.delivery_base_price + (km * settings.delivery_price_per_km));
+            
+            document.getElementById('price-econom').textContent = `${economPrice} ₸`;
+            document.getElementById('info-econom').textContent = `≈ ${min} мин · ${km} км`;
+            document.getElementById('price-delivery').textContent = `${deliveryPrice} ₸`;
+            document.getElementById('info-delivery').textContent = `≈ ${min} мин · ${km} км`;
+            document.getElementById('route-info').innerHTML = `📏 <strong>${km} км</strong> · ⏱ <strong>≈ ${min} мин</strong>`;
+        }
+
+        function selectTariff(tariff) {
+            selectedTariff = tariff;
+            document.querySelectorAll('.tariff-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tariff-${tariff}`).classList.add('active');
+        }
+
+        // ==================== СОЗДАНИЕ ЗАКАЗА ====================
+        async function createOrder() {
+            if (!pointFrom || !pointTo || !lastRouteData.distance) return;
+            
+            const km = (lastRouteData.distance / 1000).toFixed(1);
+            const min = Math.round(lastRouteData.time / 60);
+            let price;
+            
+            if (selectedTariff === 'econom') {
+                price = Math.round(settings.econom_base_price + (km * settings.econom_price_per_km));
+            } else {
+                price = Math.round(settings.delivery_base_price + (km * settings.delivery_price_per_km));
+            }
+            
+            const order = {
+                passenger_id: currentUser.id,
+                passenger_name: currentUser.first_name,
+                passenger_phone: currentUser.phone,
+                from_address: pointFrom.name,
+                from_lat: pointFrom.coords[0],
+                from_lng: pointFrom.coords[1],
+                to_address: pointTo.name,
+                to_lat: pointTo.coords[0],
+                to_lng: pointTo.coords[1],
+                distance_km: km,
+                duration_min: min,
+                tariff: selectedTariff,
+                price: price
+            };
+            
+            const result = await api('orders', 'POST', order);
+            
+            if (result.success) {
+                document.getElementById('searching-screen').classList.add('active');
+                
+                // Симуляция поиска водителя (в реальности - проверка каждые 3 секунды)
+                setTimeout(() => {
+                    document.getElementById('searching-screen').classList.remove('active');
+                    alert('🚖 Водитель найден! Ожидайте машину.');
+                }, 5000);
+            }
+        }
+
+        function cancelSearch() {
+            document.getElementById('searching-screen').classList.remove('active');
+        }
+
+        // ==================== МЕНЮ ====================
+        function toggleMenu() {
+            const menu = document.getElementById('menu-overlay');
+            menu.classList.toggle('active');
+            
+            if (currentUser) {
+                document.getElementById('menu-name').textContent = currentUser.first_name;
+                document.getElementById('menu-phone').textContent = currentUser.phone;
+            }
+        }
+
+        function openPage(page) {
+            window.location.href = `/${page}`;
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('main-screen').style.display = 'none';
+            document.getElementById('auth-screen').style.display = 'flex';
+            document.getElementById('menu-overlay').classList.remove('active');
+        }
+
+        // ==================== ЗАПУСК ====================
+        // Проверяем, есть ли пользователь
+        (async function() {
+            try {
+                const result = await api(`auth?telegram_id=${telegramId}`);
+                if (result.user) {
+                    currentUser = result.user;
+                    document.getElementById('auth-screen').style.display = 'none';
+                    document.getElementById('main-screen').style.display = 'block';
+                    initApp();
+                }
+            } catch (e) {
+                // Пользователь не найден, показываем авторизацию
+                document.getElementById('auth-screen').style.display = 'flex';
+            }
+        })();
     </script>
 </body>
 </html>
