@@ -465,14 +465,54 @@ async function login() {
         }
 
         // ==================== ЗАКАЗ ====================
-        function createOrder() {
-            document.getElementById('searching-screen').classList.add('active');
-            
-            setTimeout(function() {
-                document.getElementById('searching-screen').classList.remove('active');
-                alert('🚖 Заказ создан! Ищем водителя...\n\nОткуда: ' + pointFrom.name + '\nКуда: ' + pointTo.name);
-            }, 3000);
-        }
+async function createOrder() {
+    if (!lastDistance) return;
+    
+    const km = (lastDistance / 1000).toFixed(1);
+    const min = Math.round(lastTime / 60);
+    let price;
+    
+    if (selectedTariff === 'econom') {
+        price = Math.round(400 + (km * 80));
+    } else {
+        price = Math.round(350 + (km * 60));
+    }
+    
+    // Сохраняем заказ через API
+    try {
+        const telegramId = tg.initDataUnsafe?.user?.id || 'test_user';
+        const name = document.getElementById('auth-name') ? document.getElementById('auth-name').value : 'Пользователь';
+        
+        await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                passenger_id: String(telegramId),
+                passenger_name: name,
+                from_address: pointFrom.name,
+                from_lat: pointFrom.coords[0],
+                from_lng: pointFrom.coords[1],
+                to_address: pointTo.name,
+                to_lat: pointTo.coords[0],
+                to_lng: pointTo.coords[1],
+                distance_km: km,
+                duration_min: min,
+                tariff: selectedTariff,
+                price: price
+            })
+        });
+    } catch(e) {
+        console.log('Заказ не сохранён на сервере');
+    }
+    
+    // Показываем анимацию поиска
+    document.getElementById('searching-screen').classList.add('active');
+    
+    setTimeout(function() {
+        document.getElementById('searching-screen').classList.remove('active');
+        alert('🚖 Заказ создан!\n\nОткуда: ' + pointFrom.name + '\nКуда: ' + pointTo.name + '\nЦена: ' + price + ' ₸');
+    }, 3000);
+}
 
         function cancelSearch() {
             document.getElementById('searching-screen').classList.remove('active');
