@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>БАЦ Такси - Щербакты</title>
+    <!-- Подключаем Телеграм SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Подключаем бесплатные карты Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body, html { height: 100%; overflow: hidden; background-color: #f7f7f7; }
+        
+        /* Карта Bolt-стиль */
+        #map { height: 65vh; width: 100%; }
+        
+        /* Нижняя панель Bolt-стиль */
+        .bottom-sheet {
+            height: 35vh;
+            width: 100%;
+            background: white;
+            position: absolute;
+            bottom: 0;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .search-box {
+            background: #f1f1f1;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            text-align: center;
+            border: 1px solid #e2e2e2;
+        }
+        .tariff-container {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .tariff-card {
+            flex: 1;
+            border: 2px solid #34a853; /* Фирменный зеленый */
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+            background: #f4fbf6;
+        }
+        .tariff-title { font-size: 14px; font-weight: bold; color: #333; }
+        .tariff-price { font-size: 12px; color: #666; margin-top: 4px; }
+        
+        /* Кнопка БАЦ */
+        .btn-order {
+            background: #34a853;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(52, 168, 83, 0.3);
+        }
+        .btn-order:active { background: #2c8e46; }
+    </style>
+</head>
+<body>
+
+    <!-- Блок для карты -->
+    <div id="map"></div>
+
+    <!-- Интерфейс заказа -->
+    <div class="bottom-sheet">
+        <div class="search-box">📍 Куда едем из Шарбакты?</div>
+        
+        <div class="tariff-container">
+            <div class="tariff-card">
+                <div class="tariff-title">Эконом</div>
+                <div class="tariff-price">от 400 ₸</div>
+            </div>
+            <div class="tariff-card" style="border-color: #eee; background: white;">
+                <div class="tariff-title">Доставка</div>
+                <div class="tariff-price">от 350 ₸</div>
+            </div>
+        </div>
+        
+        <button class="btn-order" onclick="orderBatz()">Раз, два, БАЦ — поехали!</button>
+    </div>
+
+    <script>
+        // Инициализируем Телеграм Mini App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Раскрываем на весь экран телефона
+
+        // Центрируем карту строго на Щербакты (Шарбакты), Павлодарская область
+        const map = L.map('map', { zoomControl: false }).setView([52.4933, 78.1614], 14);
+
+        // Загружаем бесплатный слой карты OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Добавляем красивый маркер в центр Шарбакты
+        L.marker([52.4933, 78.1614]).addTo(map)
+            .bindPopup('БАЦ Такси Шарбакты')
+            .openPopup();
+
+        // Функция нажатия на кнопку заказа
+        function orderBatz() {
+            tg.showAlert("Ищем ближайшую машину в Щербактинском районе! БАЦ — и готово!");
+        }
+    </script>
+</body>
+</html>
