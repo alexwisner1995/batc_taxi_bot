@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Тест API БАЦ Такси</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        button { 
+            padding: 15px 30px; margin: 10px; font-size: 16px; 
+            background: #34a853; color: white; border: none; border-radius: 10px; cursor: pointer;
+        }
+        pre { 
+            background: #f5f5f5; padding: 15px; border-radius: 10px; 
+            margin-top: 20px; white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест API БАЦ Такси</h1>
+    
+    <button onclick="testCreate()">1. Создать пользователя</button>
+    <button onclick="testGet()">2. Проверить пользователя</button>
+    <button onclick="testOrders()">3. Проверить заказы</button>
+    
+    <h3>Результат:</h3>
+    <pre id="result">Нажмите на кнопку...</pre>
+
+    <script>
+        const resultBox = document.getElementById('result');
+
+        async function testCreate() {
+            resultBox.textContent = '⏳ Создаю пользователя...';
+            try {
+                const response = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        telegram_id: 'test_user_123',
+                        first_name: 'Тестовый Пассажир',
+                        phone: '+77001234567',
+                        role: 'passenger'
+                    })
+                });
+                const data = await response.json();
+                resultBox.textContent = '✅ POST /api/auth\n' + JSON.stringify(data, null, 2);
+            } catch(e) {
+                resultBox.textContent = '❌ Ошибка: ' + e.message;
+            }
+        }
+
+        async function testGet() {
+            resultBox.textContent = '⏳ Ищу пользователя...';
+            try {
+                const response = await fetch('/api/auth?telegram_id=test_user_123');
+                const data = await response.json();
+                resultBox.textContent = '✅ GET /api/auth?telegram_id=test_user_123\n' + JSON.stringify(data, null, 2);
+            } catch(e) {
+                resultBox.textContent = '❌ Ошибка: ' + e.message;
+            }
+        }
+
+        async function testOrders() {
+            resultBox.textContent = '⏳ Получаю заказы...';
+            try {
+                const response = await fetch('/api/orders');
+                const data = await response.json();
+                resultBox.textContent = '✅ GET /api/orders\n' + JSON.stringify(data, null, 2);
+            } catch(e) {
+                resultBox.textContent = '❌ Ошибка: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
