@@ -216,22 +216,42 @@
         let searchTimeout = null;
 
         // ==================== АВТОРИЗАЦИЯ ====================
-        function login() {
-            const name = document.getElementById('auth-name').value.trim();
-            const phone = document.getElementById('auth-phone').value.trim();
-            
-            if (!name || !phone) {
-                document.getElementById('auth-error').style.display = 'block';
-                return;
-            }
-            
-            document.getElementById('auth-error').style.display = 'none';
-            document.getElementById('auth-screen').style.display = 'none';
-            document.getElementById('main-screen').style.display = 'block';
-            
-            initMap();
-            console.log('Пользователь:', name, phone);
-        }
+async function login() {
+    const name = document.getElementById('auth-name').value.trim();
+    const phone = document.getElementById('auth-phone').value.trim();
+    
+    if (!name || !phone) {
+        document.getElementById('auth-error').style.display = 'block';
+        return;
+    }
+    
+    document.getElementById('auth-error').style.display = 'none';
+    
+    // Сохраняем пользователя через API
+    try {
+        const telegramId = tg.initDataUnsafe?.user?.id || 'test_user';
+        
+        await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                telegram_id: String(telegramId),
+                first_name: name,
+                phone: phone,
+                role: 'passenger'
+            })
+        });
+        
+        console.log('Пользователь сохранён:', name, phone);
+    } catch(e) {
+        console.log('Не удалось сохранить на сервере, но продолжаем');
+    }
+    
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('main-screen').style.display = 'block';
+    
+    initMap();
+}
 
         // ==================== КАРТА ====================
         function initMap() {
