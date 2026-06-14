@@ -12,47 +12,58 @@ module.exports = async (req, res) => {
 
     const usersPath = path.join(process.cwd(), 'data', 'users.json');
     
-    // Читаем пользователей
+    // Читаем файл
     let users = [];
     try {
-        users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+        const data = fs.readFileSync(usersPath, 'utf8');
+        users = JSON.parse(data);
     } catch(e) {
-        users = [];
+        console.log('Ошибка чтения users.json:', e.message);
     }
-    
-    // GET - получить пользователя по telegram_id
+
+    // GET запрос
     if (req.method === 'GET') {
-        const telegramId = req.query.telegram_id;
-        const user = users.find(u => String(u.telegram_id) === String(telegramId));
+        const { telegram_id } = req.query;
+        console.log('GET telegram_id:', telegram_id);
+        console.log('Всего пользователей:', users.length);
+        
+        const user = users.find(u => String(u.telegram_id) === String(telegram_id));
         
         if (user) {
-            return res.json({ success: true, user });
+            return res.json({ success: true, user: user });
+        } else {
+            return res.json({ success: false, user: null });
         }
-        return res.json({ success: false, user: null });
     }
     
-    // POST - создать пользователя
+    // POST запрос
     if (req.method === 'POST') {
-        const { telegram_id, first_name, phone, role } = req.body;
+        const body = req.body;
+        console.log('POST body:', body);
         
-        // Проверяем существует ли
-        let user = users.find(u => String(u.telegram_id) === String(telegram_id));
+        const telegram_id = String(body.telegram_id);
+        
+        // Ищем существующего
+        let user = users.find(u => String(u.telegram_id) === telegram_id);
         
         if (!user) {
             user = {
                 id: 'user-' + Date.now(),
-                telegram_id: String(telegram_id),
-                first_name: first_name || 'Пользователь',
-                phone: phone || '',
-                role: role || 'passenger',
+                telegram_id: telegram_id,
+                first_name: body.first_name || 'Пользователь',
+                phone: body.phone || '',
+                role: body.role || 'passenger',
                 created_at: new Date().toISOString()
             };
             users.push(user);
+            
+            // Записываем в файл
             fs.writeFileSync(usersPath, JSON.stringify(users, null, 2));
+            console.log('Пользователь создан:', user);
         }
         
-        return res.json({ success: true, user });
+        return res.json({ success: true, user: user });
     }
     
-    res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
 };
