@@ -4,120 +4,321 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>БАЦ Такси - Щербакты</title>
+    
     <!-- Подключаем Телеграм SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Подключаем бесплатные карты Leaflet -->
+    
+    <!-- Бесплатные карты Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         body, html { height: 100%; overflow: hidden; background-color: #f7f7f7; }
         
-        /* Карта Bolt-стиль */
-        #map { height: 65vh; width: 100%; }
+        /* Главная карта */
+        #map { height: 55vh; width: 100%; }
         
-        /* Нижняя панель Bolt-стиль */
+        /* Верхняя панель ввода адресов в стиле Bolt */
+        .search-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            padding: 12px;
+            z-index: 1000;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            background: #f1f1f1;
+            border-radius: 10px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+        }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group input {
+            border: none;
+            background: transparent;
+            width: 100%;
+            font-size: 15px;
+            margin-left: 10px;
+            outline: none;
+            color: #333;
+        }
+        .icon-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot-from { background: #34a853; } /* Зеленая точка - Откуда */
+        .dot-to { background: #ea4335; }   /* Красная точка - Куда */
+
+        /* Список подсказок адресов */
+        .suggestions {
+            background: white;
+            border-radius: 10px;
+            margin-top: 5px;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        }
+        .suggestion-item {
+            padding: 12px;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+
+        /* Нижняя панель с тарифами */
         .bottom-sheet {
-            height: 35vh;
+            height: 45vh;
             width: 100%;
             background: white;
             position: absolute;
             bottom: 0;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
             padding: 20px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            z-index: 1001;
         }
-        .search-box {
-            background: #f1f1f1;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 500;
-            color: #333;
+        
+        .info-text {
+            font-size: 13px;
+            color: #777;
             text-align: center;
-            border: 1px solid #e2e2e2;
+            margin-bottom: 10px;
         }
+
         .tariff-container {
             display: flex;
-            gap: 10px;
-            margin: 15px 0;
+            gap: 12px;
+            margin-bottom: 15px;
         }
         .tariff-card {
             flex: 1;
-            border: 2px solid #34a853; /* Фирменный зеленый */
-            border-radius: 12px;
-            padding: 10px;
+            border: 2px solid #eee;
+            border-radius: 16px;
+            padding: 14px;
             text-align: center;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .tariff-card.active {
+            border-color: #34a853;
             background: #f4fbf6;
         }
-        .tariff-title { font-size: 14px; font-weight: bold; color: #333; }
-        .tariff-price { font-size: 12px; color: #666; margin-top: 4px; }
+        .tariff-title { font-size: 16px; font-weight: bold; color: #333; }
+        .tariff-price { font-size: 14px; color: #34a853; font-weight: 600; margin-top: 5px; }
         
-        /* Кнопка БАЦ */
+        /* Кнопка заказа */
         .btn-order {
             background: #34a853;
             color: white;
             border: none;
-            padding: 15px;
-            border-radius: 12px;
+            padding: 16px;
+            border-radius: 14px;
             font-size: 18px;
             font-weight: bold;
             width: 100%;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(52, 168, 83, 0.3);
+            box-shadow: 0 4px 12px rgba(52, 168, 83, 0.3);
         }
-        .btn-order:active { background: #2c8e46; }
+        .btn-order:disabled {
+            background: #cccccc;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Блок для карты -->
+    <!-- Верхний блок ввода адресов -->
+    <div class="search-container">
+        <div class="input-group">
+            <span class="icon-dot dot-from"></span>
+            <input type="text" id="input-from" placeholder="Откуда (например: Вокзал)" autocomplete="off">
+        </div>
+        <div class="input-group">
+            <span class="icon-dot dot-to"></span>
+            <input type="text" id="input-to" placeholder="Куда едем?" autocomplete="off">
+        </div>
+        <div id="suggestions-box" class="suggestions"></div>
+    </div>
+
+    <!-- Карта -->
     <div id="map"></div>
 
-    <!-- Интерфейс заказа -->
+    <!-- Нижняя панель Bolt -->
     <div class="bottom-sheet">
-        <div class="search-box">📍 Куда едем из Шарбакты?</div>
-        
-        <div class="tariff-container">
-            <div class="tariff-card">
-                <div class="tariff-title">Эконом</div>
-                <div class="tariff-price">от 400 ₸</div>
-            </div>
-            <div class="tariff-card" style="border-color: #eee; background: white;">
-                <div class="tariff-title">Доставка</div>
-                <div class="tariff-price">от 350 ₸</div>
+        <div>
+            <div class="info-text" id="route-info">💡 Кликните на карту, чтобы выбрать точку назначения "Куда"</div>
+            
+            <div class="tariff-container">
+                <div class="tariff-card active" id="tariff-econom" onclick="selectTariff('econom')">
+                    <div class="tariff-title">Эконом</div>
+                    <div class="tariff-price" id="price-econom">400 ₸</div>
+                </div>
+                <div class="tariff-card" id="tariff-delivery" onclick="selectTariff('delivery')">
+                    <div class="tariff-title">Доставка</div>
+                    <div class="tariff-price" id="price-delivery">350 ₸</div>
+                </div>
             </div>
         </div>
         
-        <button class="btn-order" onclick="orderBatz()">Раз, два, БАЦ — поехали!</button>
+        <button class="btn-order" id="btn-submit" disabled onclick="sendOrder()">Раз, два, БАЦ — поехали!</button>
     </div>
 
     <script>
-        // Инициализируем Телеграм Mini App
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Раскрываем на весь экран телефона
+        tg.expand();
 
-        // Центрируем карту строго на Щербакты (Шарбакты), Павлодарская область
+        // Популярные места в Шарбакты для симуляции поиска адресов
+        const localPlaces = [
+            { name: "Железнодорожный Вокзал", coords: [52.4842, 78.1565] },
+            { name: "Центральный Акимат (Ленина)", coords: [52.4933, 78.1614] },
+            { name: "Районная Больница", coords: [52.4995, 78.1670] },
+            { name: "Центральный Стадион / Парк", coords: [52.4920, 78.1650] },
+            { name: "Общеобразовательная Школа №1", coords: [52.4955, 78.1590] }
+        ];
+
+        // Точки поездки
+        let pointFrom = { name: "Шарбакты (Центр)", coords: [52.4933, 78.1614] }; // По умолчанию центр
+        let pointTo = null;
+        let selectedTariff = 'econom';
+        let routeLine = null;
+
+        // Настройка карты Leaflet на Щербакты
         const map = L.map('map', { zoomControl: false }).setView([52.4933, 78.1614], 14);
-
-        // Загружаем бесплатный слой карты OpenStreetMap
+        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Добавляем красивый маркер в центр Шарбакты
-        L.marker([52.4933, 78.1614]).addTo(map)
-            .bindPopup('БАЦ Такси Шарбакты')
-            .openPopup();
+        // Ставим маркер "Откуда" по умолчанию
+        let markerFrom = L.marker(pointFrom.coords, { 
+            icon: L.divIcon({ className: 'custom-icon', html: '🟢', iconSize: [20, 20] }) 
+        }).addTo(map);
+        
+        let markerTo = null;
 
-        // Функция нажатия на кнопку заказа
-        function orderBatz() {
-            tg.showAlert("Ищем ближайшую машину в Щербактинском районе! БАЦ — и готово!");
+        document.getElementById('input-from').value = pointFrom.name;
+
+        // Интерактив: Клик по карте выбирает точку "Куда"
+        map.on('click', function(e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            
+            setPointTo([lat, lng], `Точка на карте (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+        });
+
+        // Функция установки точки "Куда"
+        function setPointTo(coords, name) {
+            pointTo = { name: name, coords: coords };
+            document.getElementById('input-to').value = name;
+
+            // Обновляем маркер на карте
+            if (markerTo) map.removeLayer(markerTo);
+            markerTo = L.marker(coords, { 
+                icon: L.divIcon({ className: 'custom-icon', html: '🔴', iconSize: [20, 20] }) 
+            }).addTo(map);
+
+            calculateRoute();
+        }
+
+        // Расчет маршрута, расстояния и цены в стиле Bolt
+        function calculateRoute() {
+            if (!pointFrom || !pointTo) return;
+
+            // Убираем старую линию, если она была
+            if (routeLine) map.removeLayer(routeLine);
+
+            // Рисуем красивую линию пути между точками А и Б
+            routeLine = L.polyline([pointFrom.coords, pointTo.coords], {
+                color: '#34a853',
+                weight: 5,
+                dashArray: '10, 10',
+                opacity: 0.8
+            }).addTo(map);
+
+            // Масштабируем карту, чтобы было видно обе точки
+            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+
+            // Считаем реальное расстояние в метрах (по прямой для прототипа)
+            const distanceInMeters = map.distance(pointFrom.coords, pointTo.coords);
+            const distanceInKm = (distanceInMeters / 1000).toFixed(1);
+
+            // Логика расчета цены: базовая цена + за каждый километр
+            let priceEconom = Math.round(400 + (distanceInKm * 80));
+            let priceDelivery = Math.round(350 + (distanceInKm * 60));
+
+            // Обновляем интерфейс
+            document.getElementById('price-econom').innerText = `${priceEconom} ₸`;
+            document.getElementById('price-delivery').innerText = `${priceDelivery} ₸`;
+            
+            document.getElementById('route-info').innerText = `📐 Расстояние: ${distanceInKm} км по Щербактинскому району`;
+            
+            // Активируем кнопку заказа
+            document.getElementById('btn-submit').disabled = false;
+        }
+
+        // Переключение тарифов
+        function selectTariff(tariff) {
+            selectedTariff = tariff;
+            document.getElementById('tariff-econom').classList.remove('active');
+            document.getElementById('tariff-delivery').classList.remove('active');
+            
+            document.getElementById(`tariff-${tariff}`).classList.add('active');
+        }
+
+        // Простейший поиск/подсказки при вводе адреса "Куда"
+        const inputTo = document.getElementById('input-to');
+        const suggestionsBox = document.getElementById('suggestions-box');
+
+        inputTo.addEventListener('input', function() {
+            const text = this.value.toLowerCase();
+            suggestionsBox.innerHTML = '';
+            
+            if (!text) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+
+            const filtered = localPlaces.filter(p => p.name.toLowerCase().includes(text));
+            
+            if (filtered.length > 0) {
+                suggestionsBox.style.display = 'block';
+                filtered.forEach(place => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerText = `📍 ${place.name}`;
+                    div.onclick = function() {
+                        setPointTo(place.coords, place.name);
+                        suggestionsBox.style.display = 'none';
+                    };
+                    suggestionsBox.appendChild(div);
+                });
+            } else {
+                suggestionsBox.style.display = 'none';
+            }
+        });
+
+        // Отправка заказа водителям
+        function sendOrder() {
+            const currentPrice = selectedTariff === 'econom' ? 
+                document.getElementById('price-econom').innerText : 
+                document.getElementById('price-delivery').innerText;
+
+            tg.showPopup({
+                title: '🚖 Заказ отправлен!',
+                message: `Ищем машину!\nОткуда: ${pointFrom.name}\nКуда: ${pointTo.name}\nТариф: ${selectedTariff === 'econom' ? 'Эконом' : 'Доставка'}\nСтоимость: ${currentPrice}`,
+                buttons: [{ type: 'ok', text: 'БАЦ — жду машину!' }]
+            });
         }
     </script>
 </body>
