@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = async (req, res) => {
-    // Разрешаем CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -13,11 +12,18 @@ module.exports = async (req, res) => {
 
     const usersPath = path.join(process.cwd(), 'data', 'users.json');
     
+    // Читаем пользователей
+    let users = [];
+    try {
+        users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+    } catch(e) {
+        users = [];
+    }
+    
     // GET - получить пользователя по telegram_id
     if (req.method === 'GET') {
-        const { telegram_id } = req.query;
-        const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
-        const user = users.find(u => u.telegram_id == telegram_id);
+        const telegramId = req.query.telegram_id;
+        const user = users.find(u => String(u.telegram_id) === String(telegramId));
         
         if (user) {
             return res.json({ success: true, user });
@@ -28,17 +34,16 @@ module.exports = async (req, res) => {
     // POST - создать пользователя
     if (req.method === 'POST') {
         const { telegram_id, first_name, phone, role } = req.body;
-        let users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
         
-        // Проверяем, существует ли
-        let user = users.find(u => u.telegram_id == telegram_id);
+        // Проверяем существует ли
+        let user = users.find(u => String(u.telegram_id) === String(telegram_id));
         
         if (!user) {
             user = {
                 id: 'user-' + Date.now(),
-                telegram_id,
-                first_name,
-                phone,
+                telegram_id: String(telegram_id),
+                first_name: first_name || 'Пользователь',
+                phone: phone || '',
                 role: role || 'passenger',
                 created_at: new Date().toISOString()
             };
