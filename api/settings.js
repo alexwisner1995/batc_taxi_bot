@@ -1,21 +1,18 @@
-const fs = require('fs');
-const path = require('path');
-
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
+
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
-    const settingsPath = path.join(process.cwd(), 'data', 'settings.json');
-    
-    if (req.method === 'GET') {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        return res.json(settings);
-    }
-    
-    res.status(405).json({ error: 'Method not allowed' });
-};
+    return res.json({
+        econom_base_price: 400,
+        econom_price_per_km: 80,
+        delivery_base_price: 350,
+        delivery_price_per_km: 60,
+        commission_percent: 15,
+        min_price: 300
+    });
+}
